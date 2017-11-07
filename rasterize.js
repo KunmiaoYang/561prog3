@@ -606,19 +606,24 @@ function setupShaders() {
     } // end catch
 } // end setup shaders
 
+// TODO: combine the triangles
+function combineTri(inputTriangles) {
+}
+
 // render the loaded model
 function renderModels() {
     
     // construct the model transform matrix, based on model state
     function makeModelTransform(currModel) {
         var zAxis = vec3.create(), sumRotation = mat4.create(), temp = mat4.create(), negCtr = vec3.create();
+        currModel.mMatrix = mat4.create();
 
         // move the model to the origin
-        mat4.fromTranslation(mMatrix,vec3.negate(negCtr,currModel.center)); 
+        mat4.fromTranslation(currModel.mMatrix,vec3.negate(negCtr,currModel.center));
         
         // scale for highlighting if needed
         if (currModel.on)
-            mat4.multiply(mMatrix,mat4.fromScaling(temp,vec3.fromValues(1.2,1.2,1.2)),mMatrix); // S(1.2) * T(-ctr)
+            mat4.multiply(currModel.mMatrix,mat4.fromScaling(temp,vec3.fromValues(1.2,1.2,1.2)),currModel.mMatrix); // S(1.2) * T(-ctr)
         
         // rotate the model to current interactive orientation
         vec3.normalize(zAxis,vec3.cross(zAxis,currModel.xAxis,currModel.yAxis)); // get the new model z axis
@@ -627,20 +632,20 @@ function renderModels() {
             currModel.xAxis[1], currModel.yAxis[1], zAxis[1], 0,
             currModel.xAxis[2], currModel.yAxis[2], zAxis[2], 0,
             0, 0,  0, 1);
-        mat4.multiply(mMatrix,sumRotation,mMatrix); // R(ax) * S(1.2) * T(-ctr)
+        mat4.multiply(currModel.mMatrix,sumRotation,currModel.mMatrix); // R(ax) * S(1.2) * T(-ctr)
         
         // translate back to model center
-        mat4.multiply(mMatrix,mat4.fromTranslation(temp,currModel.center),mMatrix); // T(ctr) * R(ax) * S(1.2) * T(-ctr)
+        mat4.multiply(currModel.mMatrix,mat4.fromTranslation(temp,currModel.center),currModel.mMatrix); // T(ctr) * R(ax) * S(1.2) * T(-ctr)
 
         // translate model to current interactive orientation
-        mat4.multiply(mMatrix,mat4.fromTranslation(temp,currModel.translation),mMatrix); // T(pos)*T(ctr)*R(ax)*S(1.2)*T(-ctr)
+        mat4.multiply(currModel.mMatrix,mat4.fromTranslation(temp,currModel.translation),currModel.mMatrix); // T(pos)*T(ctr)*R(ax)*S(1.2)*T(-ctr)
         
     } // end make model transform
     
     // var hMatrix = mat4.create(); // handedness matrix
     var pMatrix = mat4.create(); // projection matrix
     var vMatrix = mat4.create(); // view matrix
-    var mMatrix = mat4.create(); // model matrix
+    // var mMatrix = mat4.create(); // model matrix
     var pvMatrix = mat4.create(); // hand * proj * view matrices
     var pvmMatrix = mat4.create(); // hand * proj * view * model matrices
     
@@ -662,8 +667,8 @@ function renderModels() {
         
         // make model transform, add to view project
         makeModelTransform(currSet);
-        mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // project * view * model
-        gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in the m matrix
+        mat4.multiply(pvmMatrix,pvMatrix,currSet.mMatrix); // project * view * model
+        gl.uniformMatrix4fv(mMatrixULoc, false, currSet.mMatrix); // pass in the m matrix
         gl.uniformMatrix4fv(pvmMatrixULoc, false, pvmMatrix); // pass in the hpvm matrix
         
         // reflectivity: feed to the fragment shader
@@ -685,22 +690,22 @@ function renderModels() {
     } // end for each triangle set
     
     // render each ellipsoid
-    var ellipsoid, instanceTransform = mat4.create(); // the current ellipsoid and material
+    var currSet, instanceTransform = mat4.create(); // the current ellipsoid and material
     
     for (var whichEllipsoid=0; whichEllipsoid<numEllipsoids; whichEllipsoid++) {
-        ellipsoid = inputEllipsoids[whichEllipsoid];
+        currSet = inputEllipsoids[whichEllipsoid];
         
         // define model transform, premult with pvmMatrix, feed to vertex shader
-        makeModelTransform(ellipsoid);
-        pvmMatrix = mat4.multiply(pvmMatrix,pvMatrix,mMatrix); // premultiply with pv matrix
-        gl.uniformMatrix4fv(mMatrixULoc, false, mMatrix); // pass in model matrix
+        makeModelTransform(currSet);
+        pvmMatrix = mat4.multiply(pvmMatrix,pvMatrix,currSet.mMatrix); // premultiply with pv matrix
+        gl.uniformMatrix4fv(mMatrixULoc, false, currSet.mMatrix); // pass in model matrix
         gl.uniformMatrix4fv(pvmMatrixULoc, false, pvmMatrix); // pass in project view model matrix
 
         // reflectivity: feed to the fragment shader
-        gl.uniform3fv(ambientULoc,ellipsoid.ambient); // pass in the ambient reflectivity
-        gl.uniform3fv(diffuseULoc,ellipsoid.diffuse); // pass in the diffuse reflectivity
-        gl.uniform3fv(specularULoc,ellipsoid.specular); // pass in the specular reflectivity
-        gl.uniform1f(shininessULoc,ellipsoid.n); // pass in the specular exponent
+        gl.uniform3fv(ambientULoc,currSet.ambient); // pass in the ambient reflectivity
+        gl.uniform3fv(diffuseULoc,currSet.diffuse); // pass in the diffuse reflectivity
+        gl.uniform3fv(specularULoc,currSet.specular); // pass in the specular reflectivity
+        gl.uniform1f(shininessULoc,currSet.n); // pass in the specular exponent
 
         gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffers[numTriangleSets+whichEllipsoid]); // activate vertex buffer
         gl.vertexAttribPointer(vPosAttribLoc,3,gl.FLOAT,false,0,0); // feed vertex buffer to shader
