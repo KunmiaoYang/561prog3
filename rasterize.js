@@ -3,8 +3,9 @@
 const WIN_Z = 0;  // default graphics window z coord in world space
 const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
 const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog2/triangles.json"; // triangles file loc
-const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog2/ellipsoids.json"; // ellipsoids file loc
+const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
+const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json"; // ellipsoids file loc
+const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
 const DELTA_TRANS = 0.0125; const DELTA_ROT = 0.02;
 
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
@@ -40,11 +41,14 @@ var currentlyPressedKeys = [];
 //region Set up environment
 // Load data from document
 function loadDocumentInputs() {
+    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     useLight = document.getElementById("UseLight").checked;
     lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
+    imageCanvas.width = canvas.width;
+    imageCanvas.height = canvas.height;
     camera.left = parseFloat(document.getElementById("WLeft").value);
     camera.right = parseFloat(document.getElementById("WRight").value);
     camera.top = parseFloat(document.getElementById("WTop").value);
@@ -62,6 +66,18 @@ function setupKeyEvent() {
 // Set up the webGL environment
 function setupWebGL() {
 
+    // Get the image canvas, render an image in it
+    var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
+    var cw = imageCanvas.width, ch = imageCanvas.height;
+    imageContext = imageCanvas.getContext("2d");
+    var bkgdImage = new Image();
+    bkgdImage.crossOrigin = "Anonymous";
+    bkgdImage.src = INPUT_BACKGROUND_URL;
+    bkgdImage.onload = function(){
+        var iw = bkgdImage.width, ih = bkgdImage.height;
+        imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
+    } // end onload callback
+
     // Get the canvas and context
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     gl = canvas.getContext("webgl"); // get a webgl object from it
@@ -73,7 +89,7 @@ function setupWebGL() {
       if (gl == null) {
         throw "unable to create gl context -- is your browser gl ready?";
       } else {
-        gl.clearColor(0.0, 0.0, 0.0, 1.0); // use black when we clear the frame buffer
+        // gl.clearColor(0.0, 0.0, 0.0, 1.0); // use black when we clear the frame buffer
         gl.clearDepth(1.0); // use max when we clear the depth buffer
         gl.enable(gl.DEPTH_TEST); // use hidden surface removal (with zbuffering)
       }
@@ -578,7 +594,7 @@ function loadTriangleSets() {
 function loadEllipsoids() {
     let nLatitude = 20;
     let nLongitude = 40;
-    var inputEllipsoids = getJSONFile(INPUT_SPHERES_URL,"ellipsoids");
+    var inputEllipsoids = getJSONFile(INPUT_ELLIPSOIDS_URL,"ellipsoids");
     ellipsoids.array = [];
     ellipsoids.selectId = 0;
 

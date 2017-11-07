@@ -5,8 +5,8 @@
     z-index: 10;
 }
 
-#myImageCanvas {
-    position: absolute;
+#my_div {
+    position: static;
     left: 0px;
     top: 0px;
     z-index: 0;
