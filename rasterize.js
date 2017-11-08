@@ -21,12 +21,11 @@ var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world sp
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
 var shaderProgram;
-var vertexBuffer; // this contains vertex coordinates in triples
-var triangleBuffer; // this contains indices into vertexBuffer in triples
-var triBufferSize = 0; // the number of indices in the triangle buffer
 var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normal for vertex shader
 var textureUVAttrib; // where to put texture uvs for vertex shader
+
+var option = {useLight: 0, lightModel: 0, transparent: 0};
 
 var models = {};
 models.selectId = -1;
@@ -51,6 +50,8 @@ function loadDocumentInputs() {
     var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     useLight = document.getElementById("UseLight").checked;
+    option.useLight = document.getElementById("UseLight").checked? 1 : 0;
+    option.transparent = document.getElementById("Transparent").checked? 1 : 0;
     // lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
@@ -113,24 +114,29 @@ function setupShaders() {
 
     // define fragment shader in essl using es6 template strings
     var fShaderCode = `
-        
         precision mediump float;
         struct light_struct {
-          vec3 xyz;
-          vec3 ambient;
-          vec3 diffuse;
-          vec3 specular;
-        };
+            vec3 xyz;
+            vec3 ambient;
+            vec3 diffuse;
+            vec3 specular;
+        };  
         struct material_struct {
-          vec3 ambient;
-          vec3 diffuse;
-          vec3 specular;
-          float n;
+            vec3 ambient;
+            vec3 diffuse;
+            vec3 specular;
+            float n;
+            float alpha;
+        };
+        struct option_struct {
+            int useLight;
+            int lightModel;
+            int transparent;
         };
         
         uniform light_struct uLights[N_LIGHT];
         uniform material_struct uMaterial;
-        uniform int uLightModel;
+        uniform option_struct uOption;
         uniform sampler2D uTexture;
         
         varying vec3 vTransformedNormal;
@@ -141,32 +147,47 @@ function setupShaders() {
         void main(void) {
             vec3 rgb = vec3(0, 0, 0);
             vec4 textureColor = texture2D(uTexture, vTextureUV);
+            float alpha;
             
-            if(uLightModel < 0) {
+            if(uOption.useLight == 0) {
                 rgb = textureColor.rgb;
+                alpha = textureColor.a;
             } else {
+                vec3 ambientColor;
+                vec3 diffuseColor;
+                vec3 specularColor;
+                
+                // Different light/texture blending models
+                if(0 == uOption.lightModel) {          // Replace
+                    ambientColor = textureColor.rgb;
+                    diffuseColor = textureColor.rgb;
+                    specularColor = uMaterial.specular;
+                    alpha = textureColor.a;
+                } else if(1 == uOption.lightModel) {   // Modulate
+                    ambientColor = textureColor.rgb * uMaterial.ambient;
+                    diffuseColor = textureColor.rgb * uMaterial.diffuse;
+                    specularColor = uMaterial.specular;
+                    alpha = textureColor.a * uMaterial.alpha;
+                }
+                
                 for(int i = 0; i < N_LIGHT; i++) {
                     vec3 L = normalize(uLights[i].xyz - vPosition.xyz);
                     vec3 V = normalize(vCameraDirection);
                     vec3 N = normalize(vTransformedNormal);
                     float dVN = dot(V, N);
                     float dLN = dot(L, N);
-                    rgb += textureColor.rgb * uLights[i].ambient; // Ambient shading
+                    rgb += ambientColor * uLights[i].ambient; // Ambient shading
                     if(dLN > 0.0 && dVN > 0.0) {
-                        rgb += dLN * (textureColor.rgb * uLights[i].diffuse);      // Diffuse shading
-                        if(0 == uLightModel) {          // Phong specular shading
-                            vec3 R = normalize(2.0 * dot(N, L) * N - L);
-                            float weight = pow(dot(V, R), uMaterial.n);
-                            if(weight > 0.0) rgb += weight * (uMaterial.specular * uLights[i].specular);
-                        } else if(1 == uLightModel) {          // Blinn-Phong specular shading
-                            vec3 H = normalize(V + L);
-                            float weight = pow(dot(N, H), uMaterial.n);
-                            if(weight > 0.0) rgb += weight * (textureColor.rgb * uLights[i].specular);
-                        }
+                        rgb += dLN * (diffuseColor * uLights[i].diffuse);      // Diffuse shading
+                        vec3 H = normalize(V + L);
+                        float weight = pow(dot(N, H), uMaterial.n);
+                        if(weight > 0.0) rgb += weight * (specularColor * uLights[i].specular);
                     }
                 }
             }
-            gl_FragColor = vec4(rgb, textureColor.a); // without texture
+                
+            if(0 == uOption.transparent) alpha = 1.0;
+            gl_FragColor = vec4(rgb, alpha); // without texture
             // gl_FragColor = textureColor; // with texture
         }
     `;
@@ -239,7 +260,6 @@ function setupShaders() {
                 gl.enableVertexAttribArray(textureUVAttrib); // input to shader from array
 
                 // Get uniform matrices
-                uniforms.lightModelUniform = gl.getUniformLocation(shaderProgram, "uLightModel");
                 uniforms.cameraPosUniform = gl.getUniformLocation(shaderProgram, "uCameraPos");
                 uniforms.mMatrixUniform = gl.getUniformLocation(shaderProgram, "uMMatrix");
                 uniforms.vMatrixUniform = gl.getUniformLocation(shaderProgram, "uVMatrix");
@@ -247,6 +267,7 @@ function setupShaders() {
                 uniforms.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
                 uniforms.doubleSideUniform = gl.getUniformLocation(shaderProgram, "uDoubleSide");
                 uniforms.textureUniform = gl.getUniformLocation(shaderProgram, "uTexture");
+                uniforms.optionUniform = getOptionUniformLocation(shaderProgram, "uOption");
                 uniforms.materialUniform = getMaterialUniformLocation(shaderProgram, "uMaterial");
                 uniforms.lightUniformArray = [];
                 for (let i = 0; i < lightArray.length; i++) {
@@ -333,6 +354,10 @@ function handleKeyDown(event) {
             models.selectId = -1;
             renderTriangles();
             return;
+        case "b":    // b — toggle between Phong and Blinn-Phong lighting
+            option.lightModel = 0 === option.lightModel ? 1 : 0;
+            renderTriangles();
+            return;
     }
 
     // Part 6: Interactively change lighting on a model
@@ -340,10 +365,6 @@ function handleKeyDown(event) {
     if (-1 !== models.selectId) {
         let model = models.array[models.selectId];
         switch (event.key) {
-            case "b":    // b — toggle between Phong and Blinn-Phong lighting
-                model.specularModel = 0 === model.specularModel ? 1 : 0;
-                renderTriangles();
-                return;
             case "n":   // n — increment the specular integer exponent by 1 (wrap from 20 to 0)
                 model.material.n = (model.material.n + 1) % 21;
                 renderTriangles();
@@ -492,73 +513,6 @@ function initCamera(eye, lookAt, viewUp) {
     camera.vMatrix = mat4.lookAt(mat4.create(), eye, center, viewUp);
     updateCameraAxis();
 }
-
-// read triangles in, load them into webgl buffers
-// @deprecated
-function loadTriangles() {
-    var inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
-    // inputTriangles = JSON.parse("[\n" +
-    //     "  {\n" +
-    //     "    \"material\": {\"ambient\": [0.1,0.1,0.1], \"diffuse\": [0.6,0.4,0.4], \"specular\": [0.3,0.3,0.3], \"n\":11}, \n" +
-    //     "    \"vertices\": [[0.5, 2.0, 1.0],[2.0, 0.5, 1.0],[-1.0,-1.0, 1.0]],\n" +
-    //     "    \"normals\": [[0, 0, -1],[0, 0, -1],[0, 0, -1]],\n" +
-    //     "    \"triangles\": [[0,1,2]]\n" +
-    //     "  },\n" +
-    //     "  {\n" +
-    //     "    \"material\": {\"ambient\": [0.1,0.1,0.1], \"diffuse\": [0.6,0.6,0.4], \"specular\": [0.3,0.3,0.3], \"n\":17}, \n" +
-    //     "    \"vertices\": [[0.15, 0.15, 0.75],[0.15, 0.35, 0.75],[0.35,0.35,0.75],[0.35,0.15,0.75]],\n" +
-    //     "    \"normals\": [[0, 0, -1],[0, 0, -1],[0, 0, -1],[0, 0, -1]],\n" +
-    //     "    \"triangles\": [[0,1,2],[2,3,0]]\n" +
-    //     "  }\n" +
-    //     "]");
-
-    if (inputTriangles != String.null) { 
-        var whichSetVert; // index of vertex in current triangle set
-        var whichSetTri; // index of triangle in current triangle set
-        var coordArray = []; // 1D array of vertex coords for WebGL
-        var indexArray = []; // 1D array of vertex indices for WebGL
-        var vtxBufferSize = 0; // the number of vertices in the vertex buffer
-        var vtxToAdd = []; // vtx coords to add to the coord array
-        var indexOffset = vec3.create(); // the index offset for the current set
-        var triToAdd = vec3.create(); // tri indices to add to the index array
-        
-        for (var whichSet=0; whichSet<inputTriangles.length; whichSet++) {
-            vec3.set(indexOffset,vtxBufferSize,vtxBufferSize,vtxBufferSize); // update vertex offset
-            
-            // set up the vertex coord array
-            for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++) {
-                vtxToAdd = inputTriangles[whichSet].vertices[whichSetVert];
-                coordArray.push(vtxToAdd[0],vtxToAdd[1],vtxToAdd[2]);
-            } // end for vertices in set
-            
-            // set up the triangle index array, adjusting indices across sets
-            for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++) {
-                vec3.add(triToAdd,indexOffset,inputTriangles[whichSet].triangles[whichSetTri]);
-                indexArray.push(triToAdd[0],triToAdd[1],triToAdd[2]);
-            } // end for triangles in set
-
-            vtxBufferSize += inputTriangles[whichSet].vertices.length; // total number of vertices
-            triBufferSize += inputTriangles[whichSet].triangles.length; // total number of tris
-        } // end for each triangle set 
-        triBufferSize *= 3; // now total number of indices
-
-        // console.log("coordinates: "+coordArray.toString());
-        // console.log("numverts: "+vtxBufferSize);
-        // console.log("indices: "+indexArray.toString());
-        // console.log("numindices: "+triBufferSize);
-        
-        // send the vertex coords to webGL
-        vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
-        gl.bindBuffer(gl.ARRAY_BUFFER,vertexBuffer); // activate that buffer
-        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(coordArray),gl.STATIC_DRAW); // coords to that buffer
-        
-        // send the triangle indices to webGL
-        triangleBuffer = gl.createBuffer(); // init empty triangle index buffer
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleBuffer); // activate that buffer
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indexArray),gl.STATIC_DRAW); // indices to that buffer
-
-    } // end if triangles found
-} // end load triangles
 
 // Read triangle sets in
 function loadTriangleSets() {
@@ -748,12 +702,21 @@ function getLightUniformLocation(program, varName) {
 }
 
 function getMaterialUniformLocation(program, varName) {
-    var lightUniform = {};
-    lightUniform.ambient = gl.getUniformLocation(program, varName + ".ambient");
-    lightUniform.diffuse = gl.getUniformLocation(program, varName + ".diffuse");
-    lightUniform.specular = gl.getUniformLocation(program, varName + ".specular");
-    lightUniform.n = gl.getUniformLocation(program, varName + ".n");
-    return lightUniform;
+    var materialUniform = {};
+    materialUniform.ambient = gl.getUniformLocation(program, varName + ".ambient");
+    materialUniform.diffuse = gl.getUniformLocation(program, varName + ".diffuse");
+    materialUniform.specular = gl.getUniformLocation(program, varName + ".specular");
+    materialUniform.n = gl.getUniformLocation(program, varName + ".n");
+    materialUniform.alpha = gl.getUniformLocation(program, varName + ".alpha");
+    return materialUniform;
+}
+
+function getOptionUniformLocation(program, varName) {
+    var optionUniform = {};
+    optionUniform.useLight = gl.getUniformLocation(program, varName + ".useLight");
+    optionUniform.lightModel = gl.getUniformLocation(program, varName + ".lightModel");
+    optionUniform.transparent = gl.getUniformLocation(program, varName + ".transparent");
+    return optionUniform;
 }
 
 function setLightUniform(lightUniform, light) {
@@ -768,6 +731,13 @@ function setMaterialUniform(materialUniform, material) {
     gl.uniform3fv(materialUniform.diffuse, material.diffuse);
     gl.uniform3fv(materialUniform.specular, material.specular);
     gl.uniform1f(materialUniform.n, material.n);
+    gl.uniform1f(materialUniform.alpha, material.alpha);
+}
+
+function setOptionUniform(materialUniform, option) {
+    gl.uniform1i(materialUniform.useLight, option.useLight);
+    gl.uniform1i(materialUniform.lightModel, option.lightModel);
+    gl.uniform1i(materialUniform.transparent, option.transparent);
 }
 
 function calcPerspective(left, right, top, bottom, near, far) {
@@ -826,11 +796,6 @@ function translateModel(model, direction, distance) {
 // render with element topology
 function renderElements(models) {
     for(let i = 0; i < models.array.length; i++) {
-        if(useLight)
-            gl.uniform1i(uniforms.lightModelUniform, models.array[i].specularModel);
-        else
-            gl.uniform1i(uniforms.lightModelUniform, -1);
-
         gl.uniform1f(uniforms.doubleSideUniform, models.array[i].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[i].material);
 
@@ -876,10 +841,6 @@ function renderArrays(models) {
 
     for (let i = 0; i < models.triArray.length; i++) {
         let modelIndex = models.triArray[i][0];
-        if (useLight)
-            gl.uniform1i(uniforms.lightModelUniform, models.array[modelIndex].specularModel);
-        else
-            gl.uniform1i(uniforms.lightModelUniform, -1);
 
         gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
@@ -905,6 +866,8 @@ function renderTriangles() {
     for (let i = 0; i < lightArray.length; i++) {
         setLightUniform(uniforms.lightUniformArray[i], lightArray[i]);
     }
+    // Initialize options
+    setOptionUniform(uniforms.optionUniform, option);
 
     // Initialize camera
     gl.uniform3fv(uniforms.cameraPosUniform, camera.xyz);
