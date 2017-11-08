@@ -443,19 +443,18 @@ function getJSONFile(url,descr) {
 function loadTexture(url) {
     let texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-        new Uint8Array([0, 0, 255, 255]));
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 
     texture.image = new Image();
     texture.image.src = url;
 
-    texture.image.addEventListener('load', function () {
+    texture.image.onload = function () {
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    });
+    };
     return texture;
 }
 
@@ -655,7 +654,7 @@ function loadEllipsoids() {
             let deltaLat = Math.PI / nLatitude;
             let deltaLong = 2 * Math.PI / nLongitude;
             for(let i = 0, theta = 0.0; i <= nLatitude; i++, theta += deltaLat) {
-                let sinT = Math.sin(theta), cosT = Math.cos(theta), v = 1.0 - theta/Math.PI;
+                let sinT = Math.sin(theta), cosT = Math.cos(theta), v = theta/Math.PI;
                 for(let j = 0, phi = 0.0; j <= nLongitude; j++, phi += deltaLong) {
                     let sinP = Math.sin(phi), cosP = Math.cos(phi);
                     let xu = sinP*sinT, yu = cosT, zu = cosP*sinT;
@@ -927,6 +926,15 @@ function refresh() {
     renderTriangles();
 }
 
+var lastTime = 0;
+function animate(now) {
+    if(now - lastTime > 100) {
+        lastTime = now;
+        renderTriangles();
+    }
+    requestAnimationFrame(animate);
+}
+
 /* MAIN -- HERE is where execution begins after window load */
 
 function main() {
@@ -941,5 +949,6 @@ function main() {
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
     setupKeyEvent();
+    requestAnimationFrame(animate);
   
 } // end main
