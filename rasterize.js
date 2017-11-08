@@ -25,6 +25,7 @@ var triangleBuffer; // this contains indices into vertexBuffer in triples
 var triBufferSize = 0; // the number of indices in the triangle buffer
 var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib; // where to put normal for vertex shader
+var textureUVAttrib; // where to put texture uvs for vertex shader
 
 var models = {};
 models.selectId = -1;
@@ -129,10 +130,12 @@ function setupShaders() {
         uniform light_struct uLights[N_LIGHT];
         uniform material_struct uMaterial;
         uniform int uLightModel;
+        uniform sampler2D uTexture;
         
         varying vec3 vTransformedNormal;
         varying vec4 vPosition;
         varying vec3 vCameraDirection;
+        varying vec2 vTextureUV;
 
         void main(void) {
             vec3 rgb = vec3(0, 0, 0);
@@ -161,7 +164,8 @@ function setupShaders() {
                     }
                 }
             }
-            gl_FragColor = vec4(rgb, 1); // all fragments are white
+            // gl_FragColor = vec4(rgb, 1); // without texture
+            gl_FragColor = texture2D(uTexture, vTextureUV); // with texture
         }
     `;
     fShaderCode = "#define N_LIGHT " + lightArray.length + "\n" + fShaderCode;
@@ -170,6 +174,7 @@ function setupShaders() {
     var vShaderCode = `
         attribute vec3 vertexPosition;
         attribute vec3 vertexNormal;
+        attribute vec2 textureUV;
 
         uniform mat4 uMMatrix;      // Model transformation
         uniform mat4 uVMatrix;      // Viewing transformation
@@ -181,9 +186,11 @@ function setupShaders() {
         varying vec3 vTransformedNormal;
         varying vec4 vPosition;
         varying vec3 vCameraDirection;
+        varying vec2 vTextureUV;
 
         void main(void) {
             vPosition = uMMatrix * vec4(vertexPosition, 1.0);
+            vTextureUV = textureUV;
             vCameraDirection = uCameraPos - vPosition.xyz;
             gl_Position = uPMatrix * uVMatrix * vPosition;
             vTransformedNormal = uNMatrix * vertexNormal;
@@ -226,6 +233,9 @@ function setupShaders() {
                 vertexNormalAttrib = gl.getAttribLocation(shaderProgram, "vertexNormal");
                 gl.enableVertexAttribArray(vertexNormalAttrib); // input to shader from array
 
+                textureUVAttrib = gl.getAttribLocation(shaderProgram, "textureUV");
+                gl.enableVertexAttribArray(textureUVAttrib); // input to shader from array
+
                 // Get uniform matrices
                 uniforms.lightModelUniform = gl.getUniformLocation(shaderProgram, "uLightModel");
                 uniforms.cameraPosUniform = gl.getUniformLocation(shaderProgram, "uCameraPos");
@@ -234,6 +244,7 @@ function setupShaders() {
                 uniforms.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
                 uniforms.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
                 uniforms.doubleSideUniform = gl.getUniformLocation(shaderProgram, "uDoubleSide");
+                uniforms.textureUniform = gl.getUniformLocation(shaderProgram, "uTexture");
                 uniforms.materialUniform = getMaterialUniformLocation(shaderProgram, "uMaterial");
                 uniforms.lightUniformArray = [];
                 for (let i = 0; i < lightArray.length; i++) {
@@ -429,6 +440,25 @@ function getJSONFile(url,descr) {
     }
 } // end get json file
 
+function loadTexture(url) {
+    let texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+        new Uint8Array([0, 0, 255, 255]));
+
+    texture.image = new Image();
+    texture.image.src = url;
+
+    texture.image.addEventListener('load', function () {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    });
+    return texture;
+}
+
 function bufferTriangleSet(triangleSet) {
     // send the vertex coords to webGL
     triangleSet.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
@@ -444,6 +474,12 @@ function bufferTriangleSet(triangleSet) {
     triangleSet.triangleBuffer = gl.createBuffer(); // init empty triangle index buffer
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, triangleSet.triangleBuffer); // activate that buffer
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(triangleSet.indexArray), gl.STATIC_DRAW); // indices to that buffer
+
+    // send the texture to webGL
+    triangleSet.texture = loadTexture(triangleSet.material.texture);
+    triangleSet.textureUVBuffer = gl.createBuffer(); // init empty triangle index buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, triangleSet.textureUVBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleSet.uvArray), gl.STATIC_DRAW); // normals to that buffer
 }
 
 function initCamera(eye, lookAt, viewUp) {
@@ -800,6 +836,15 @@ function renderElements(models) {
         gl.bindBuffer(gl.ARRAY_BUFFER, models.array[i].normalBuffer); // activate
         gl.vertexAttribPointer(vertexNormalAttrib,3,gl.FLOAT,false,0,0); // feed
 
+        // texture uvs buffer: activate and feed into vertex shader
+        gl.bindBuffer(gl.ARRAY_BUFFER, models.array[i].textureUVBuffer); // activate
+        gl.vertexAttribPointer(textureUVAttrib,2,gl.FLOAT,false,0,0); // feed
+
+        // update texture uniform
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, models.array[i].texture);
+        gl.uniform1i(uniforms.textureUniform, 0);
+
         // triangle buffer: activate and render
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, models.array[i].triangleBuffer); // activate
         gl.drawElements(gl.TRIANGLES, models.array[i].triBufferSize,gl.UNSIGNED_SHORT,0); // render
@@ -828,6 +873,10 @@ function renderArrays(models) {
 
         gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
         gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, models.array[modelIndex].nMatrix);
+
+        // vertex normal buffer: activate and feed into vertex shader
+        gl.bindBuffer(gl.ARRAY_BUFFER, models.array[modelIndex].textureUVBuffer); // activate
+        gl.vertexAttribPointer(textureUVAttrib,2,gl.FLOAT,false,0,0); // feed
 
         // triangle buffer: activate and render
         gl.drawArrays(gl.TRIANGLES, models.triArray[i][1], 3); // render
@@ -864,8 +913,8 @@ function renderTriangles() {
     }
 
     // Render models
-    // renderElements(models);
-    renderArrays(models);
+    renderElements(models);
+    // renderArrays(models);
 } // end render triangles
 //endregion
 
