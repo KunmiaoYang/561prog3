@@ -1,16 +1,21 @@
 //region GLOBAL CONSTANTS AND VARIABLES
 /* assignment specific globals */
-const WIN_Z = 0;  // default graphics window z coord in world space
-const WIN_LEFT = 0; const WIN_RIGHT = 1;  // default left and right x coords in world space
-const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in world space
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
 const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json"; // ellipsoids file loc
-const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
-const DELTA_TRANS = 0.0125; const DELTA_ROT = 0.02;
+var defaultEye = vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
+var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
+var defaultUp = vec3.fromValues(0,1,0); // default view up vector
+var lightAmbient = vec3.fromValues(1,1,1); // default light ambient emission
+var lightDiffuse = vec3.fromValues(1,1,1); // default light diffuse emission
+var lightSpecular = vec3.fromValues(1,1,1); // default light specular emission
+var lightPosition = vec3.fromValues(2,4,-0.5); // default light position
+var rotateTheta = Math.PI/50; // how much to rotate models by with each key press
 
-var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
-var LookAt = vec3.fromValues(0, 0, 1); // default eye look at direction in world space
-var ViewUp = vec3.fromValues(0, 1, 0); // default eye view up direction in world space
+// Adapt
+const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
+const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
+var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
+var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world space
 
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -28,7 +33,7 @@ var triangleSets = {};
 var ellipsoids = {};
 var lightArray = [];
 var useLight = true;
-var lightsURL;
+// var lightsURL;
 
 var camera = {};
 var uniforms = {};
@@ -44,7 +49,7 @@ function loadDocumentInputs() {
     var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     useLight = document.getElementById("UseLight").checked;
-    lightsURL = document.getElementById("LightsURL").value;
+    // lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
     imageCanvas.width = canvas.width;
@@ -654,12 +659,15 @@ function loadEllipsoids() {
 } // end load ellipsoids
 
 function loadLights() {
-    lightArray = getJSONFile(lightsURL, "lights");
-    // lightArray = JSON.parse("[\n" +
-    //     "{\"x\": -1.0, \"y\": 3.0, \"z\": -0.5, \"ambient\": [1,1,1], \"diffuse\": [1,1,1], \"specular\": [1,1,1]}\n" +
-    //     ",{\"x\": -1.0, \"y\": 3.0, \"z\": -0.5, \"ambient\": [0,0,1], \"diffuse\": [0,0,1], \"specular\": [0,0,1]}\n" +
-    //     ",{\"x\": 2, \"y\": -1, \"z\": -0.5, \"ambient\": [0,1,0], \"diffuse\": [0,1,0], \"specular\": [0,1,0]}\n" +
-    //     "]");
+    // lightArray = getJSONFile(lightsURL, "lights");
+    var light = {};
+    light.ambient = lightAmbient;
+    light.diffuse = lightDiffuse;
+    light.specular = lightSpecular;
+    light.x = lightPosition[0];
+    light.y = lightPosition[1];
+    light.z = lightPosition[2];
+    lightArray = [light];
 }
 //endregion
 
@@ -803,7 +811,7 @@ function main() {
     loadDocumentInputs();   // load the data from html page
     loadLights(); // load in the lights
     setupWebGL(); // set up the webGL environment
-    initCamera(Eye, LookAt, ViewUp); // Initialize camera
+    initCamera(defaultEye, LookAt, ViewUp); // Initialize camera
     loadTriangleSets(); // load in the triangles from tri file
     loadEllipsoids(); // load in the ellipsoids from ellipsoids file
     setupShaders(); // setup the webGL shaders
