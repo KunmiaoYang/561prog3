@@ -357,52 +357,40 @@ function handleKeyDown(event) {
                 renderTriangles();
                 return;
             case "k":   // k — translate selection left along view X
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.X, -DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.X, -DELTA_TRANS);
                 return;
             case ";":   // ; — translate selection right along view X
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.X, DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.X, DELTA_TRANS);
                 return;
             case "o":   // o — translate selection forward along view Z
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.Z, -DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.Z, -DELTA_TRANS);
                 return;
             case "l":   // l — translate selection backward along view Z
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.Z, DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.Z, DELTA_TRANS);
                 return;
             case "i":   // i — translate selection up along view Y
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.Y, DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.Y, DELTA_TRANS);
                 return;
             case "p":   // p — translate selection down along view Y
-                mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), camera.Y, -DELTA_TRANS));
-                renderTriangles();
+                translateModel(model, camera.Y, -DELTA_TRANS);
                 return;
             case "K":   // K — rotate selection left around view Y (yaw)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), -DELTA_ROT, camera.Y), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.Y, -DELTA_ROT);
                 return;
             case ":":   // : — rotate selection right around view Y (yaw)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), DELTA_ROT, camera.Y), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.Y, DELTA_ROT);
                 return;
             case "O":   // O — rotate selection forward around view X (pitch)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), -DELTA_ROT, camera.X), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.X, -DELTA_ROT);
                 return;
             case "L":   // L — rotate selection backward around view X (pitch)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), DELTA_ROT, camera.X), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.X, DELTA_ROT);
                 return;
             case "I":   // I — rotate selection clockwise around view Z (roll)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), -DELTA_ROT, camera.Z), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.Z, -DELTA_ROT);
                 return;
             case "P":   // P — rotate selection counterclockwise around view Z (roll)
-                mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), DELTA_ROT, camera.Z), model.rMatrix);
-                renderTriangles();
+                rotateModel(model, camera.Z, DELTA_ROT);
                 return;
         }
     }
@@ -743,6 +731,16 @@ function translateCamera(vec) {
         camera.vMatrix[i + 12] -= vec[i];
         camera.xyz[i] += camera.X[i] * vec[0] + camera.Y[i] * vec[1] + camera.Z[i] * vec[2];
     }
+}
+
+function rotateModel(model, axis, rotAngle) {
+    mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), rotAngle, axis), model.rMatrix);
+    renderTriangles();
+}
+
+function translateModel(model, direction, offset) {
+    mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), direction, offset));
+    renderTriangles();
 }
 //endregions
 
