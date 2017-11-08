@@ -862,6 +862,16 @@ function renderArrays(models) {
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
 
+    // Initialize blending
+    if (1 === option.transparent) {
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
+    } else {
+        gl.disable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
+    }
+
     // Initialize lights
     for (let i = 0; i < lightArray.length; i++) {
         setLightUniform(uniforms.lightUniformArray[i], lightArray[i]);
