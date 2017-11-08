@@ -13,6 +13,7 @@ var rotateTheta = Math.PI/50; // how much to rotate models by with each key pres
 
 // Adapt
 const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
+// const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
 var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
 var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world space
@@ -139,9 +140,10 @@ function setupShaders() {
 
         void main(void) {
             vec3 rgb = vec3(0, 0, 0);
+            vec4 textureColor = texture2D(uTexture, vTextureUV);
             
             if(uLightModel < 0) {
-                rgb = uMaterial.diffuse;
+                rgb = textureColor.rgb;
             } else {
                 for(int i = 0; i < N_LIGHT; i++) {
                     vec3 L = normalize(uLights[i].xyz - vPosition.xyz);
@@ -149,9 +151,9 @@ function setupShaders() {
                     vec3 N = normalize(vTransformedNormal);
                     float dVN = dot(V, N);
                     float dLN = dot(L, N);
-                    rgb += uMaterial.ambient * uLights[i].ambient; // Ambient shading
+                    rgb += textureColor.rgb * uLights[i].ambient; // Ambient shading
                     if(dLN > 0.0 && dVN > 0.0) {
-                        rgb += dLN * (uMaterial.diffuse * uLights[i].diffuse);      // Diffuse shading
+                        rgb += dLN * (textureColor.rgb * uLights[i].diffuse);      // Diffuse shading
                         if(0 == uLightModel) {          // Phong specular shading
                             vec3 R = normalize(2.0 * dot(N, L) * N - L);
                             float weight = pow(dot(V, R), uMaterial.n);
@@ -159,13 +161,13 @@ function setupShaders() {
                         } else if(1 == uLightModel) {          // Blinn-Phong specular shading
                             vec3 H = normalize(V + L);
                             float weight = pow(dot(N, H), uMaterial.n);
-                            if(weight > 0.0) rgb += weight * (uMaterial.specular * uLights[i].specular);
+                            if(weight > 0.0) rgb += weight * (textureColor.rgb * uLights[i].specular);
                         }
                     }
                 }
             }
-            // gl_FragColor = vec4(rgb, 1); // without texture
-            gl_FragColor = texture2D(uTexture, vTextureUV); // with texture
+            gl_FragColor = vec4(rgb, textureColor.a); // without texture
+            // gl_FragColor = textureColor; // with texture
         }
     `;
     fShaderCode = "#define N_LIGHT " + lightArray.length + "\n" + fShaderCode;
