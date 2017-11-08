@@ -1,12 +1,12 @@
-#myWebGLCanvas {
+#my_div {
     position: absolute;
     left: 0px;
     top: 0px;
     z-index: 10;
 }
 
-#my_div {
-    position: static;
+#myImageCanvas {
+    position: absolute;
     left: 0px;
     top: 0px;
     z-index: 0;
