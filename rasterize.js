@@ -646,6 +646,33 @@ function loadEllipsoids() {
     } // end if ellipsoids found
 } // end load ellipsoids
 
+// Combine models
+function combineModelsInArray() {
+    models.glVertices = [];
+    models.glNormals = [];
+    models.triArray = [];
+    for(let i = 0; i < models.array.length; i++) {
+        let model = models.array[i];
+        for(let j = 0; j < model.indexArray.length; j++) {
+            let baseIndex = 3 * model.indexArray[j];
+            models.glVertices.push(model.coordArray[baseIndex], model.coordArray[baseIndex + 1], model.coordArray[baseIndex + 2]);
+            models.glNormals.push(model.normalArray[baseIndex], model.normalArray[baseIndex + 1], model.normalArray[baseIndex + 2]);
+            if(j%3 === 0) models.triArray.push([i, 3 * models.triArray.length, 0.0]);
+        }
+    }
+
+    // send the vertex coords to webGL
+    models.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.vertexBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.glVertices), gl.STATIC_DRAW); // coords to that buffer
+
+    // send the vertex normals to webGL
+    models.normalBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.normalBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.glNormals), gl.STATIC_DRAW); // normals to that buffer
+}
+
+// Load lights
 function loadLights() {
     // lightArray = getJSONFile(lightsURL, "lights");
     var light = {};
@@ -738,46 +765,26 @@ function rotateModel(model, axis, rotAngle) {
     renderTriangles();
 }
 
-function translateModel(model, direction, offset) {
-    mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), direction, offset));
+function translateModel(model, direction, distance) {
+    mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), direction, distance));
     renderTriangles();
 }
 //endregions
 
-// render the loaded model
-function renderTriangles() {
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
-
-    gl.uniform3fv(uniforms.cameraPosUniform, camera.xyz);
-    gl.uniformMatrix4fv(uniforms.vMatrixUniform, false, camera.vMatrix);
-    gl.uniformMatrix4fv(uniforms.pMatrixUniform, false, camera.pMatrix);
-    for (let i = 0; i < lightArray.length; i++) {
-        setLightUniform(uniforms.lightUniformArray[i], lightArray[i]);
-    }
-
-    // Test rMatrix
-    // ellipsoids.array[0].doubleSide = true;
-    // triangleSets.array[0].doubleSide = false;
-    // mat4.fromRotation(triangleSetArray[1].rMatrix, Math.PI/4, [0,1,0]);
-    // let scaleTest = 3;
-    // mat4.scale(triangleSetArray[1].rMatrix, triangleSetArray[1].rMatrix, [scaleTest, scaleTest, scaleTest]);
-    var scaleMatrix = mat4.identity(mat4.create());
-    mat4.scale(scaleMatrix, scaleMatrix, [1.2, 1.2, 1.2]);
-
+//region Render image
+// render with element topology
+function renderElements(models) {
     for(let i = 0; i < models.array.length; i++) {
         if(useLight)
             gl.uniform1i(uniforms.lightModelUniform, models.array[i].specularModel);
         else
             gl.uniform1i(uniforms.lightModelUniform, -1);
-        // triangleSetArray[i].material.ambient = [0.5,1.0,1.0];
+
         gl.uniform1f(uniforms.doubleSideUniform, models.array[i].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[i].material);
-        var mMatrix = mat4.multiply(mat4.create(), models.array[i].tMatrix, models.array[i].rMatrix);
-        if (models.selectId === i) {
-            mMatrix = mat4.multiply(mat4.create(), mMatrix, scaleMatrix);
-        }
-        gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, mMatrix);
-        gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, mat3.normalFromMat4(mat3.create(), models.array[i].rMatrix));
+
+        gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[i].mMatrix);
+        gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, models.array[i].nMatrix);
 
         // vertex buffer: activate and feed into vertex shader
         gl.bindBuffer(gl.ARRAY_BUFFER, models.array[i].vertexBuffer); // activate
@@ -791,7 +798,70 @@ function renderTriangles() {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, models.array[i].triangleBuffer); // activate
         gl.drawElements(gl.TRIANGLES, models.array[i].triBufferSize,gl.UNSIGNED_SHORT,0); // render
     }
+}
+
+// TODO: render by triangle array
+function renderArrays(models) {
+    // vertex buffer: activate and feed into vertex shader
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.vertexBuffer); // activate
+    gl.vertexAttribPointer(vertexPositionAttrib,3,gl.FLOAT,false,0,0); // feed
+
+    // vertex normal buffer: activate and feed into vertex shader
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.normalBuffer); // activate
+    gl.vertexAttribPointer(vertexNormalAttrib,3,gl.FLOAT,false,0,0); // feed
+
+    for (let i = 0; i < models.triArray.length; i++) {
+        let modelIndex = models.triArray[i][0];
+        if (useLight)
+            gl.uniform1i(uniforms.lightModelUniform, models.array[modelIndex].specularModel);
+        else
+            gl.uniform1i(uniforms.lightModelUniform, -1);
+
+        gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
+        setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
+
+        gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
+        gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, models.array[modelIndex].nMatrix);
+
+        // triangle buffer: activate and render
+        gl.drawArrays(gl.TRIANGLES, models.triArray[i][1], 3); // render
+    }
+}
+
+// render the loaded model
+function renderTriangles() {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
+
+    // Initialize lights
+    for (let i = 0; i < lightArray.length; i++) {
+        setLightUniform(uniforms.lightUniformArray[i], lightArray[i]);
+    }
+
+    // Initialize camera
+    gl.uniform3fv(uniforms.cameraPosUniform, camera.xyz);
+
+    // Initialize viewport transform
+    gl.uniformMatrix4fv(uniforms.vMatrixUniform, false, camera.vMatrix);
+
+    // Initialize projection transform
+    gl.uniformMatrix4fv(uniforms.pMatrixUniform, false, camera.pMatrix);
+
+    // Initialize model transform
+    var scaleMatrix = mat4.identity(mat4.create());
+    mat4.scale(scaleMatrix, scaleMatrix, [1.2, 1.2, 1.2]);
+    for(let i = 0; i < models.array.length; i++) {
+        models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].tMatrix, models.array[i].rMatrix);
+        models.array[i].nMatrix = mat3.normalFromMat4(mat3.create(), models.array[i].rMatrix);
+        if (models.selectId === i) {
+            models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].mMatrix, scaleMatrix);
+        }
+    }
+
+    // Render models
+    // renderElements(models);
+    renderArrays(models);
 } // end render triangles
+//endregion
 
 function refresh() {
     loadDocumentInputs();
@@ -812,6 +882,7 @@ function main() {
     initCamera(defaultEye, LookAt, ViewUp); // Initialize camera
     loadTriangleSets(); // load in the triangles from tri file
     loadEllipsoids(); // load in the ellipsoids from ellipsoids file
+    combineModelsInArray();
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
     setupKeyEvent();
