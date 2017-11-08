@@ -542,6 +542,7 @@ function loadTriangleSets() {
             triangleSet.coordArray = []; // 1D array of vertex coords for WebGL
             triangleSet.normalArray = []; // 1D array of vertex normals for WebGL
             triangleSet.indexArray = []; // 1D array of vertex indices for WebGL
+            triangleSet.uvArray = []; // 1D array of vertex uvs for WebGL
 
             // Calculate triangles center
             var triCenter = vec3.create();
@@ -550,23 +551,24 @@ function loadTriangleSets() {
             }
             vec3.scale(triCenter, triCenter, 1.0/curSet.vertices.length);
 
-            // Add coordinates to buffer
+            // Add coordinates
             for(let i = 0; i < curSet.vertices.length; i++) {
                 vtxToAdd = vec3.subtract(vec3.create(), curSet.vertices[i], triCenter);
                 triangleSet.coordArray.push(vtxToAdd[0],vtxToAdd[1],vtxToAdd[2]);
             }
 
-            // Add normals to buffer
-            for(let i = 0; i < curSet.normals.length; i++) {
+            // Add normals
+            for(let i = 0; i < curSet.normals.length; i++)
                 triangleSet.normalArray.push(curSet.normals[i][0],curSet.normals[i][1],curSet.normals[i][2]);
-            }
 
-            // Add triangles to buffer
-            for (whichSetTri=0; whichSetTri<curSet.triangles.length; whichSetTri++) {
-                for (let i = 0; i < 3; i++, triangleSet.triBufferSize++) {
+            // Add triangles
+            for (whichSetTri=0; whichSetTri<curSet.triangles.length; whichSetTri++)
+                for (let i = 0; i < 3; i++, triangleSet.triBufferSize++)
                     triangleSet.indexArray.push(curSet.triangles[whichSetTri][i]);
-                }
-            } // end for triangles in set
+
+            // Add uvs
+            for(let i = 0; i < curSet.uvs.length; i++)
+                triangleSet.uvArray.push(curSet.uvs[i][0], curSet.uvs[i][1]);
 
             // Buffer data arrays into GPU
             bufferTriangleSet(triangleSet);
@@ -603,9 +605,12 @@ function loadEllipsoids() {
             triangleSet.material.diffuse = curSet.diffuse;
             triangleSet.material.specular = curSet.specular;
             triangleSet.material.n = curSet.n;
+            triangleSet.material.alpha = curSet.alpha;
+            triangleSet.material.texture = curSet.texture;
             triangleSet.coordArray = []; // 1D array of vertex coords for WebGL
             triangleSet.normalArray = []; // 1D array of vertex normals for WebGL
             triangleSet.indexArray = []; // 1D array of vertex indices for WebGL
+            triangleSet.uvArray = []; // 1D array of vertex uvs for WebGL
 
             // Create triangles center
             var triCenter = vec3.fromValues(curSet.x, curSet.y, curSet.z);
@@ -614,12 +619,13 @@ function loadEllipsoids() {
             let deltaLat = Math.PI / nLatitude;
             let deltaLong = 2 * Math.PI / nLongitude;
             for(let i = 0, theta = 0.0; i <= nLatitude; i++, theta += deltaLat) {
-                let sinT = Math.sin(theta), cosT = Math.cos(theta);
+                let sinT = Math.sin(theta), cosT = Math.cos(theta), v = 1.0 - theta/Math.PI;
                 for(let j = 0, phi = 0.0; j <= nLongitude; j++, phi += deltaLong) {
                     let sinP = Math.sin(phi), cosP = Math.cos(phi);
-                    let xu = cosP*sinT, yu = cosT, zu = sinP*sinT;
+                    let xu = sinP*sinT, yu = cosT, zu = cosP*sinT;
                     triangleSet.coordArray.push(xu * curSet.a, yu * curSet.b, zu * curSet.c);
                     triangleSet.normalArray.push(xu / curSet.a, yu / curSet.b, zu / curSet.c);
+                    triangleSet.uvArray.push(phi/Math.PI/2, v)
                 }
             }
 
