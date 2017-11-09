@@ -17,10 +17,16 @@
       <br>
       <table>
         <tr>
-          <td><input type="checkbox" id="UseLight" onchange="refresh()">Use Light</td>
-          <td><input type="checkbox" id="Transparent" onchange="refresh()">Transparent</td>
           <td></td>
-          <td><button onclick="refresh()">Set Parameters</button></td>
+          <td><input type="checkbox" id="UseLight" onchange="refresh()">Use Light</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td><input type="checkbox" id="Transparent" onchange="refresh()">Transparent</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td><input type="checkbox" id="depthSort" onchange="refresh()">Depth Sort</td>
         </tr>
         <tr>
           <th>Canvas</th>
@@ -51,6 +57,10 @@
           <td><input type="number" id="WNear" value="0.1"></td>
           <td>Far</td>
           <td><input type="number" id="WFar" value="10"></td>
+        </tr>
+        <tr>
+          <td></td>
+          <td><button onclick="refresh()">Set Parameters</button></td>
         </tr>
       </table>
       <!--<label for="LightsURL">Lights JSON URL</label>-->
