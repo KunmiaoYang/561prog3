@@ -11,11 +11,13 @@ var lightSpecular = vec3.fromValues(1,1,1); // default light specular emission
 var lightPosition = vec3.fromValues(2,4,-0.5); // default light position
 var rotateTheta = Math.PI/50; // how much to rotate models by with each key press
 
-// Adapt
+// My globals
 const INPUT_BASE_URL = "https://ncsucgclass.github.io/prog3/"; // base url
+// const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
+const INPUT_MULTITEXTURE_URL = "https://ncsucgclass.github.io/prog3/retro.jpg"; // multitexture url
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
 var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
 var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world space
@@ -36,6 +38,7 @@ var triangleSets = {};
 var ellipsoids = {};
 var lightArray = [];
 // var lightsURL;
+var multitexture;
 
 var camera = {};
 var uniforms = {};
@@ -139,6 +142,7 @@ function setupShaders() {
         uniform material_struct uMaterial;
         uniform option_struct uOption;
         uniform sampler2D uTexture;
+        uniform sampler2D uMultiTexture;
         
         varying vec3 vTransformedNormal;
         varying vec4 vPosition;
@@ -148,7 +152,10 @@ function setupShaders() {
         void main(void) {
             vec3 rgb = vec3(0, 0, 0);
             vec4 textureColor = texture2D(uTexture, vTextureUV);
+            vec4 multitextureColor = texture2D(uMultiTexture, vTextureUV);
             float alpha;
+            
+            textureColor.a = multitextureColor.r;
             
             if(uOption.useLight == 0) {
                 rgb = textureColor.rgb;
@@ -268,6 +275,7 @@ function setupShaders() {
                 uniforms.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
                 uniforms.doubleSideUniform = gl.getUniformLocation(shaderProgram, "uDoubleSide");
                 uniforms.textureUniform = gl.getUniformLocation(shaderProgram, "uTexture");
+                uniforms.multitextureUniform = gl.getUniformLocation(shaderProgram, "uMultiTexture");
                 uniforms.optionUniform = getOptionUniformLocation(shaderProgram, "uOption");
                 uniforms.materialUniform = getMaterialUniformLocation(shaderProgram, "uMaterial");
                 uniforms.lightUniformArray = [];
@@ -482,6 +490,10 @@ function loadTexture(url) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     };
     return texture;
+}
+
+function initMultitexture() {
+    multitexture = loadTexture(INPUT_MULTITEXTURE_URL);
 }
 
 function bufferTriangleSet(triangleSet) {
@@ -889,6 +901,11 @@ function renderArrays(models) {
     // Sort triangles
     if(1 === option.transparent && 1 === option.depthSort) depthSort(models, camera);
 
+    // update multitexture uniform
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, multitexture);
+    gl.uniform1i(uniforms.multitextureUniform, 1);
+
     for (let i = 0; i < models.triArray.length; i++) {
         let modelIndex = models.triArray[i][0];
 
@@ -979,6 +996,7 @@ function main() {
     loadTriangleSets(); // load in the triangles from tri file
     loadEllipsoids(); // load in the ellipsoids from ellipsoids file
     combineModelsInArray();
+    initMultitexture();
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
     setupKeyEvent();
