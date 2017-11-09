@@ -12,6 +12,8 @@ var lightPosition = vec3.fromValues(2,4,-0.5); // default light position
 var rotateTheta = Math.PI/50; // how much to rotate models by with each key press
 
 // Adapt
+const INPUT_BASE_URL = "https://ncsucgclass.github.io/prog3/"; // base url
+// const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
@@ -499,7 +501,7 @@ function bufferTriangleSet(triangleSet) {
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(triangleSet.indexArray), gl.STATIC_DRAW); // indices to that buffer
 
     // send the texture to webGL
-    triangleSet.texture = loadTexture(triangleSet.material.texture);
+    triangleSet.texture = loadTexture(INPUT_BASE_URL + triangleSet.material.texture);
     triangleSet.textureUVBuffer = gl.createBuffer(); // init empty triangle index buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, triangleSet.textureUVBuffer); // activate that buffer
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(triangleSet.uvArray), gl.STATIC_DRAW); // normals to that buffer
