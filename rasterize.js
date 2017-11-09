@@ -467,7 +467,7 @@ function getJSONFile(url,descr) {
 function loadTexture(url) {
     let texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 255, 255]));
 
     texture.image = new Image();
     texture.image.crossOrigin = "anonymous";
@@ -646,6 +646,19 @@ function loadEllipsoids() {
     } // end if ellipsoids found
 } // end load ellipsoids
 
+// Update model matrices
+function updateModelMatrices(models) {
+    var scaleMatrix = mat4.identity(mat4.create());
+    mat4.scale(scaleMatrix, scaleMatrix, [1.2, 1.2, 1.2]);
+    for(let i = 0; i < models.array.length; i++) {
+        models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].tMatrix, models.array[i].rMatrix);
+        models.array[i].nMatrix = mat3.normalFromMat4(mat3.create(), models.array[i].rMatrix);
+        if (models.selectId === i) {
+            models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].mMatrix, scaleMatrix);
+        }
+    }
+}
+
 // Combine models
 function combineModelsInArray() {
     models.glVertices = [];
@@ -662,6 +675,9 @@ function combineModelsInArray() {
             if(j%3 === 0) models.triArray.push([i, 3 * models.triArray.length, 0.0]);
         }
     }
+
+    updateModelMatrices(models);
+    depthSort(models, camera);
 
     // send the vertex coords to webGL
     models.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
@@ -898,8 +914,8 @@ function renderTriangles() {
 
     // Initialize blending
     if (1 === option.transparent) {
-        gl.blendFunc(gl.SRC_ALPHA, 0 === option.depthSort? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
-        // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        // gl.blendFunc(gl.SRC_ALPHA, 0 === option.depthSort? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.enable(gl.BLEND);
         gl.depthMask(false);
         gl.disable(gl.DEPTH_TEST);
@@ -925,16 +941,8 @@ function renderTriangles() {
     // Initialize projection transform
     gl.uniformMatrix4fv(uniforms.pMatrixUniform, false, camera.pMatrix);
 
-    // Initialize model transform
-    var scaleMatrix = mat4.identity(mat4.create());
-    mat4.scale(scaleMatrix, scaleMatrix, [1.2, 1.2, 1.2]);
-    for(let i = 0; i < models.array.length; i++) {
-        models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].tMatrix, models.array[i].rMatrix);
-        models.array[i].nMatrix = mat3.normalFromMat4(mat3.create(), models.array[i].rMatrix);
-        if (models.selectId === i) {
-            models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].mMatrix, scaleMatrix);
-        }
-    }
+    // Update model transform
+    updateModelMatrices(models);
 
     // Render models
     // renderElements(models);
