@@ -56,6 +56,7 @@ function loadDocumentInputs() {
     option.useLight = document.getElementById("UseLight").checked? 1 : 0;
     option.transparent = document.getElementById("Transparent").checked? 1 : 0;
     option.depthSort = document.getElementById("depthSort").checked? 1 : 0;
+    option.multitexture = document.getElementById("Multitexture").checked? 1 : 0;
     // lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
@@ -136,6 +137,7 @@ function setupShaders() {
             int useLight;
             int lightModel;
             int transparent;
+            int multitexture;
         };
         
         uniform light_struct uLights[N_LIGHT];
@@ -155,8 +157,6 @@ function setupShaders() {
             vec4 multitextureColor = texture2D(uMultiTexture, vTextureUV);
             float alpha;
             
-            textureColor.a = multitextureColor.r;
-            
             if(uOption.useLight == 0) {
                 rgb = textureColor.rgb;
                 alpha = textureColor.a;
@@ -170,7 +170,7 @@ function setupShaders() {
                     ambientColor = textureColor.rgb;
                     diffuseColor = textureColor.rgb;
                     specularColor = uMaterial.specular;
-                    alpha = textureColor.a * uMaterial.alpha;
+                    alpha = textureColor.a;
                 } else if(1 == uOption.lightModel) {   // Modulate
                     ambientColor = textureColor.rgb * uMaterial.ambient;
                     diffuseColor = textureColor.rgb * uMaterial.diffuse;
@@ -184,13 +184,15 @@ function setupShaders() {
                     vec3 N = normalize(vTransformedNormal);
                     float dVN = dot(V, N);
                     float dLN = dot(L, N);
-                    rgb += ambientColor * uLights[i].ambient; // Ambient shading
+                    vec3 rgbAdd = ambientColor * uLights[i].ambient;    // Ambient shading
                     if(dLN > 0.0 && dVN > 0.0) {
-                        rgb += dLN * (diffuseColor * uLights[i].diffuse);      // Diffuse shading
+                        rgbAdd += dLN * (diffuseColor * uLights[i].diffuse);    // Diffuse shading
                         vec3 H = normalize(V + L);
                         float weight = pow(dot(N, H), uMaterial.n);
-                        if(weight > 0.0) rgb += weight * (specularColor * uLights[i].specular);
+                        if(weight > 0.0) rgbAdd += weight * (specularColor * uLights[i].specular);  // specular shading
                     }
+                    if(1 == uOption.multitexture) rgbAdd *= multitextureColor.rgb;  // Multitexture
+                    rgb += rgbAdd;
                 }
             }
                 
@@ -775,6 +777,7 @@ function getOptionUniformLocation(program, varName) {
     optionUniform.useLight = gl.getUniformLocation(program, varName + ".useLight");
     optionUniform.lightModel = gl.getUniformLocation(program, varName + ".lightModel");
     optionUniform.transparent = gl.getUniformLocation(program, varName + ".transparent");
+    optionUniform.multitexture = gl.getUniformLocation(program, varName + ".multitexture");
     return optionUniform;
 }
 
@@ -797,6 +800,7 @@ function setOptionUniform(materialUniform, option) {
     gl.uniform1i(materialUniform.useLight, option.useLight);
     gl.uniform1i(materialUniform.lightModel, option.lightModel);
     gl.uniform1i(materialUniform.transparent, option.transparent);
+    gl.uniform1i(materialUniform.multitexture, option.multitexture);
 }
 
 function calcPerspective(left, right, top, bottom, near, far) {
