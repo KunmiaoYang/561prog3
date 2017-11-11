@@ -19,6 +19,7 @@ const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // b
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const INPUT_MULTITEXTURE_URL = "https://ncsucgclass.github.io/prog3/retro.jpg"; // multitexture url
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
+const LATITUDE_COUNT = 20; const LONGITUDE_COUNT = 40;
 var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
 var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world space
 
@@ -31,12 +32,10 @@ var textureUVAttrib; // where to put texture uvs for vertex shader
 
 var option = {useLight: 0, lightModel: 0, transparent: 0, depthSort: 0};
 
-var models = {};
-models.selectId = -1;
-models.array = [];
-var bsp;
+var models = {selectId: -1, array: []};
 var triangleSets = {};
 var ellipsoids = {};
+var bsp;
 var lightArray = [];
 // var lightsURL;
 var multitexture;
@@ -56,6 +55,7 @@ function loadDocumentInputs() {
     var canvas = document.getElementById("myWebGLCanvas"); // create a js canvas
     option.useLight = document.getElementById("UseLight").checked? 1 : 0;
     option.transparent = document.getElementById("Transparent").checked? 1 : 0;
+    option.textureTransparent = document.getElementById("TextureTransparent").checked? 1 : 0;
     option.depthSort = document.getElementById("depthSort").checked? 1 : 0;
     option.multitexture = document.getElementById("Multitexture").checked? 1 : 0;
     option.BSPTree = document.getElementById("BSPTree").checked? 1 : 0;
@@ -139,6 +139,7 @@ function setupShaders() {
             int useLight;
             int lightModel;
             int transparent;
+            int textureTransparent;
             int multitexture;
         };
         
@@ -159,6 +160,7 @@ function setupShaders() {
             vec4 multitextureColor = texture2D(uMultiTexture, vTextureUV);
             float alpha;
             
+            if(0 == uOption.textureTransparent) textureColor.a = 1.0;
             if(uOption.useLight == 0) {
                 rgb = textureColor.rgb;
                 alpha = textureColor.a;
@@ -198,7 +200,7 @@ function setupShaders() {
                 }
             }
                 
-            if(0 == uOption.transparent) alpha = 1.0;
+            if(0 == uOption.transparent) alpha = textureColor.a;
             gl_FragColor = vec4(rgb, alpha); // without texture
             // gl_FragColor = textureColor; // with texture
         }
@@ -344,15 +346,19 @@ function handleKeyDown(event) {
             renderTriangles();
             return;
         case "ArrowLeft":    // left — select and highlight the previous triangle set (previous off)
+            event.preventDefault();     // Prevent arrow keys change the radio button selection
             changeModel(models, triangleSets, -1);
             return;
         case "ArrowRight":    // right — select and highlight the next triangle set (previous off)
+            event.preventDefault();     // Prevent arrow keys change the radio button selection
             changeModel(models, triangleSets, 1);
             return;
         case "ArrowUp":    // up — select and highlight the next ellipsoid (previous off)
+            event.preventDefault();     // Prevent arrow keys change the radio button selection
             changeModel(models, ellipsoids, 1);
             return;
         case "ArrowDown":    // down — select and highlight the previous ellipsoid (previous off)
+            event.preventDefault();     // Prevent arrow keys change the radio button selection
             changeModel(models, ellipsoids, -1);
             return;
         case " ":    // space — deselect and turn off highlight
@@ -590,8 +596,8 @@ function loadTriangleSets() {
 
 // Read ellipsoid in
 function loadEllipsoids() {
-    let nLatitude = 10;
-    let nLongitude = 20;
+    let nLatitude = LATITUDE_COUNT;
+    let nLongitude = LONGITUDE_COUNT;
     var inputEllipsoids = getJSONFile(INPUT_ELLIPSOIDS_URL,"ellipsoids");
     ellipsoids.array = [];
     ellipsoids.selectId = 0;
@@ -841,6 +847,7 @@ function getOptionUniformLocation(program, varName) {
     optionUniform.useLight = gl.getUniformLocation(program, varName + ".useLight");
     optionUniform.lightModel = gl.getUniformLocation(program, varName + ".lightModel");
     optionUniform.transparent = gl.getUniformLocation(program, varName + ".transparent");
+    optionUniform.textureTransparent = gl.getUniformLocation(program, varName + ".textureTransparent");
     optionUniform.multitexture = gl.getUniformLocation(program, varName + ".multitexture");
     return optionUniform;
 }
@@ -864,6 +871,7 @@ function setOptionUniform(materialUniform, option) {
     gl.uniform1i(materialUniform.useLight, option.useLight);
     gl.uniform1i(materialUniform.lightModel, option.lightModel);
     gl.uniform1i(materialUniform.transparent, option.transparent);
+    gl.uniform1i(materialUniform.textureTransparent, option.textureTransparent);
     gl.uniform1i(materialUniform.multitexture, option.multitexture);
 }
 
@@ -1048,7 +1056,7 @@ function renderTriangles() {
     updateModelMatrices(models);
 
     // Render models
-    if(option.transparent && (option.depthSort || option.BSPTree )) {
+    if(option.transparent || (option.depthSort || option.BSPTree )) {
         renderArrays(models);
     } else {
         renderElements(models);
@@ -1084,7 +1092,6 @@ function animate(now) {
 /* MAIN -- HERE is where execution begins after window load */
 
 function main() {
-
     loadDocumentInputs();   // load the data from html page
     loadLights(); // load in the lights
     setupWebGL(); // set up the webGL environment
