@@ -50,10 +50,8 @@ class BSP {
     }
 }
 
-var tri_id = 0;
 class Triangle {
     constructor(model) {
-        this.id = tri_id++;
         this.model = model;
         this.p = [];
     }

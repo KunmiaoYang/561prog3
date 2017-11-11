@@ -712,7 +712,6 @@ function combineModelsInBSP() {
     models.glVertices = [];
     models.glNormals = [];
     models.uvArray = [];
-    tri_id = 0;
     for(let i = 0; i < models.array.length; i++) {
         let model = models.array[i];
         for(let j = 0; j < model.indexArray.length; j += 3) {
@@ -738,7 +737,6 @@ function combineModelsInBSP() {
                                 node.tri.p[1].uv[0], node.tri.p[1].uv[1],
                                 node.tri.p[2].uv[0], node.tri.p[2].uv[1]);
         node.tri.model[1] = 3 * (index++);
-        node.tri.model.push(node.tri.p[0], node.tri.p[1], node.tri.p[2]);
         if(node.front) stack.push(node.front);
         if(node.back) stack.push(node.back);
     }
