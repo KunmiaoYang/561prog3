@@ -16,22 +16,20 @@
     <div id="my_div">
       <canvas id="myWebGLCanvas" width="512" height="512"></canvas>
       <br>
-      <table>
+      <table border="1">
         <tr>
           <td></td>
-          <td><input type="checkbox" id="UseLight" onchange="refresh()">Use Light</td>
-          <td></td>
-          <td><input type="checkbox" id="Multitexture" onchange="refresh()">Multitexture</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td><input type="checkbox" id="Transparent" onchange="refresh()">Transparent</td>
-          <td></td>
-          <td><input type="checkbox" id="depthSort" onchange="refresh()">Depth Sort</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td><input type="checkbox" id="BSPTree" onchange="refresh()">BSP Tree</td>
+          <td>
+            <input type="checkbox" id="UseLight" onchange="refresh()">Use Light<br>
+            <input type="checkbox" id="Multitexture" onchange="refresh()">Multitexture<br>
+            <input type="checkbox" id="Transparent" onchange="refresh()">Transparent
+          </td>
+          <td>Sort</td>
+          <td>
+            <input type="radio" id="noSort" name="sort" onchange="refresh()" value=0 checked>None<br>
+            <input type="radio" id="depthSort" onchange="refresh()" name="sort" value=1>Depth Sort<br>
+            <input type="radio" id="BSPTree" onchange="refresh()" name="sort" value=2>BSP Tree<br>
+          </td>
         </tr>
         <tr>
           <th>Canvas</th>

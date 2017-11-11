@@ -597,8 +597,8 @@ function loadTriangleSets() {
 
 // Read ellipsoid in
 function loadEllipsoids() {
-    let nLatitude = 2;
-    let nLongitude = 4;
+    let nLatitude = 10;
+    let nLongitude = 20;
     var inputEllipsoids = getJSONFile(INPUT_ELLIPSOIDS_URL,"ellipsoids");
     ellipsoids.array = [];
     ellipsoids.selectId = 0;
@@ -712,7 +712,7 @@ function combineModelsInArray() {
 }
 
 // Combine in BSP tree
-function combineModelsInBSP(models, camera) {
+function combineModelsInBSP() {
     updateModelMatrices(models);
     bsp = new BSP();
     models.glVertices = [];
@@ -920,11 +920,13 @@ function translateCamera(vec) {
 
 function rotateModel(model, axis, rotAngle) {
     mat4.multiply(model.rMatrix, mat4.fromRotation(mat4.create(), rotAngle, axis), model.rMatrix);
+    if(option.BSPTree) combineModelsInBSP();
     renderTriangles();
 }
 
 function translateModel(model, direction, distance) {
     mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), direction, distance));
+    if(option.BSPTree) combineModelsInBSP();
     renderTriangles();
 }
 //endregions
@@ -978,11 +980,6 @@ function renderArrays(models) {
 
     // Sort triangles
     if(1 === option.transparent && 1 === option.depthSort) depthSort(models, camera);
-
-    // update multitexture uniform
-    gl.activeTexture(gl.TEXTURE1);
-    gl.bindTexture(gl.TEXTURE_2D, multitexture);
-    gl.uniform1i(uniforms.multitextureUniform, 1);
 
     // set identity matrix
     let eMatrix = mat4.create();
@@ -1043,23 +1040,32 @@ function renderTriangles() {
     // Initialize projection transform
     gl.uniformMatrix4fv(uniforms.pMatrixUniform, false, camera.pMatrix);
 
+    // update multitexture uniform
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, multitexture);
+    gl.uniform1i(uniforms.multitextureUniform, 1);
+
     // Update model transform
     updateModelMatrices(models);
 
     // Render models
-    // renderElements(models);
-    renderArrays(models);
+    if(0 === option.depthSort && 0 === option.BSPTree && 0 === option.transparent) {
+        renderElements(models);
+    } else {
+        renderArrays(models);
+    }
 } // end render triangles
 //endregion
 
 function refresh() {
+    let preBST = option.BSPTree;
     loadDocumentInputs();
     loadLights(); // load in the lights
     setupWebGL(); // set up the webGL environment
     camera.pMatrix = calcPerspective(camera.left, camera.right, camera.top, camera.bottom, camera.near, camera.far);
     if(1 === option.BSPTree) {
-        combineModelsInBSP(models, camera);
-    } else {
+        combineModelsInBSP();
+    } else if(1 === option.depthSort || 1 === preBST) {
         combineModelsInArray();
     }
     setupShaders(); // setup the webGL shaders
@@ -1068,6 +1074,7 @@ function refresh() {
 
 var lastTime = 0;
 function animate(now) {
+    if(1 === option.BSPTree) return;
     if(now - lastTime > 100) {
         lastTime = now;
         renderTriangles();
@@ -1090,6 +1097,6 @@ function main() {
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
     setupKeyEvent();
-    // requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
   
 } // end main
