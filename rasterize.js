@@ -344,27 +344,20 @@ function handleKeyDown(event) {
             renderTriangles();
             return;
         case "ArrowLeft":    // left — select and highlight the previous triangle set (previous off)
-            triangleSets.selectId = (triangleSets.selectId + triangleSets.array.length - 1) % triangleSets.array.length;
-            models.selectId = triangleSets.array[triangleSets.selectId].id;
-            renderTriangles();
+            changeModel(models, triangleSets, -1);
             return;
         case "ArrowRight":    // right — select and highlight the next triangle set (previous off)
-            triangleSets.selectId = (triangleSets.selectId + 1) % triangleSets.array.length;
-            models.selectId = triangleSets.array[triangleSets.selectId].id;
-            renderTriangles();
+            changeModel(models, triangleSets, 1);
             return;
         case "ArrowUp":    // up — select and highlight the next ellipsoid (previous off)
-            ellipsoids.selectId = (ellipsoids.selectId + 1) % ellipsoids.array.length;
-            models.selectId = ellipsoids.array[ellipsoids.selectId].id;
-            renderTriangles();
+            changeModel(models, ellipsoids, 1);
             return;
         case "ArrowDown":    // down — select and highlight the previous ellipsoid (previous off)
-            ellipsoids.selectId = (ellipsoids.selectId + ellipsoids.array.length - 1) % ellipsoids.array.length;
-            models.selectId = ellipsoids.array[ellipsoids.selectId].id;
-            renderTriangles();
+            changeModel(models, ellipsoids, -1);
             return;
         case " ":    // space — deselect and turn off highlight
             models.selectId = -1;
+            if(option.BSPTree) combineModelsInBSP();
             renderTriangles();
             return;
         case "b":    // b — toggle between Phong and Blinn-Phong lighting
@@ -713,6 +706,7 @@ function combineModelsInArray() {
 
 // Combine in BSP tree
 function combineModelsInBSP() {
+    if(0 === option.transparent) return;
     updateModelMatrices(models);
     bsp = new BSP();
     models.glVertices = [];
@@ -907,7 +901,7 @@ function updateCameraAxis() {
 function rotateCamera(rad, axis) {
     mat4.multiply(camera.vMatrix, mat4.fromRotation(mat4.create(), -rad, axis), camera.vMatrix);
     updateCameraAxis();
-    if(option.BSPTree) updateBSP(models, camera, bsp);
+    if(option.transparent && option.BSPTree) updateBSP(models, camera, bsp);
 }
 
 function translateCamera(vec) {
@@ -915,7 +909,7 @@ function translateCamera(vec) {
         camera.vMatrix[i + 12] -= vec[i];
         camera.xyz[i] += camera.X[i] * vec[0] + camera.Y[i] * vec[1] + camera.Z[i] * vec[2];
     }
-    if(option.BSPTree) updateBSP(models, camera, bsp);
+    if(option.transparent && option.BSPTree) updateBSP(models, camera, bsp);
 }
 
 function rotateModel(model, axis, rotAngle) {
@@ -926,6 +920,13 @@ function rotateModel(model, axis, rotAngle) {
 
 function translateModel(model, direction, distance) {
     mat4.translate(model.tMatrix, model.tMatrix, vec3.scale(vec3.create(), direction, distance));
+    if(option.BSPTree) combineModelsInBSP();
+    renderTriangles();
+}
+
+function changeModel(models, triangleSets, offset) {
+    triangleSets.selectId = (triangleSets.selectId + triangleSets.array.length + offset) % triangleSets.array.length;
+    models.selectId = triangleSets.array[triangleSets.selectId].id;
     if(option.BSPTree) combineModelsInBSP();
     renderTriangles();
 }
@@ -1049,10 +1050,10 @@ function renderTriangles() {
     updateModelMatrices(models);
 
     // Render models
-    if(0 === option.depthSort && 0 === option.BSPTree && 0 === option.transparent) {
-        renderElements(models);
-    } else {
+    if(option.transparent && (option.depthSort || option.BSPTree )) {
         renderArrays(models);
+    } else {
+        renderElements(models);
     }
 } // end render triangles
 //endregion
