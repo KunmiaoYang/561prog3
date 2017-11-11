@@ -34,6 +34,7 @@ var option = {useLight: 0, lightModel: 0, transparent: 0, depthSort: 0};
 var models = {};
 models.selectId = -1;
 models.array = [];
+var bsp;
 var triangleSets = {};
 var ellipsoids = {};
 var lightArray = [];
@@ -57,6 +58,7 @@ function loadDocumentInputs() {
     option.transparent = document.getElementById("Transparent").checked? 1 : 0;
     option.depthSort = document.getElementById("depthSort").checked? 1 : 0;
     option.multitexture = document.getElementById("Multitexture").checked? 1 : 0;
+    option.BSPTree = document.getElementById("BSPTree").checked? 1 : 0;
     // lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
@@ -595,8 +597,8 @@ function loadTriangleSets() {
 
 // Read ellipsoid in
 function loadEllipsoids() {
-    let nLatitude = 20;
-    let nLongitude = 40;
+    let nLatitude = 2;
+    let nLongitude = 4;
     var inputEllipsoids = getJSONFile(INPUT_ELLIPSOIDS_URL,"ellipsoids");
     ellipsoids.array = [];
     ellipsoids.selectId = 0;
@@ -707,6 +709,76 @@ function combineModelsInArray() {
     models.textureUVBuffer = gl.createBuffer(); // init empty triangle index buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, models.textureUVBuffer); // activate that buffer
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.uvArray), gl.STATIC_DRAW); // normals to that buffer
+}
+
+// Combine in BSP tree
+function combineModelsInBSP(models, camera) {
+    updateModelMatrices(models);
+    bsp = new BSP();
+    models.glVertices = [];
+    models.glNormals = [];
+    models.uvArray = [];
+    tri_id = 0;
+    for(let i = 0; i < models.array.length; i++) {
+        let model = models.array[i];
+        for(let j = 0; j < model.indexArray.length; j += 3) {
+            let baseIndices3 = [3 * model.indexArray[j], 3 * model.indexArray[j + 1], 3 * model.indexArray[j + 2]];
+            let baseIndices2 = [2 * model.indexArray[j], 2 * model.indexArray[j + 1], 2 * model.indexArray[j + 2]];
+            let tri = new Triangle([i]);
+            tri.setByArrayMatrix(model.coordArray, baseIndices3, model.mMatrix);
+            tri.setNormalByArray(model.normalArray, baseIndices3);
+            tri.setUVByArray(model.uvArray, baseIndices2);
+            bsp.add(tri);
+        }
+    }
+    for(let index = 0, stack = [bsp]; stack.length > 0;) {
+        let node = stack.pop();
+        if(null === node.tri) continue;
+        models.glVertices.push( node.tri.p[0][0], node.tri.p[0][1], node.tri.p[0][2],
+                                node.tri.p[1][0], node.tri.p[1][1], node.tri.p[1][2],
+                                node.tri.p[2][0], node.tri.p[2][1], node.tri.p[2][2]);
+        models.glNormals.push(  node.tri.p[0].n[0], node.tri.p[0].n[1], node.tri.p[0].n[2],
+                                node.tri.p[1].n[0], node.tri.p[1].n[1], node.tri.p[1].n[2],
+                                node.tri.p[2].n[0], node.tri.p[2].n[1], node.tri.p[2].n[2]);
+        models.uvArray.push(    node.tri.p[0].uv[0], node.tri.p[0].uv[1],
+                                node.tri.p[1].uv[0], node.tri.p[1].uv[1],
+                                node.tri.p[2].uv[0], node.tri.p[2].uv[1]);
+        node.tri.model[1] = 3 * (index++);
+        node.tri.model.push(node.tri.p[0], node.tri.p[1], node.tri.p[2]);
+        if(node.front) stack.push(node.front);
+        if(node.back) stack.push(node.back);
+    }
+
+    // send the vertex coords to webGL
+    models.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.vertexBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.glVertices), gl.STATIC_DRAW); // coords to that buffer
+
+    // send the vertex normals to webGL
+    models.normalBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.normalBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.glNormals), gl.STATIC_DRAW); // normals to that buffer
+
+    // send the texture uvs to webGL
+    models.textureUVBuffer = gl.createBuffer(); // init empty triangle index buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER, models.textureUVBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(models.uvArray), gl.STATIC_DRAW); // normals to that buffer
+
+    updateBSP(models, camera, bsp);
+}
+
+// Update BSP sequence
+function updateBSP(models, camera, bsp) {
+    function traverse(models, camera, node) {
+        let seq;
+        if(node.tri.isFront(camera.xyz)) seq = [node.back, node.front];
+        else seq = [node.front, node.back];
+        if(seq[0] && seq[0].tri) traverse(models, camera, seq[0]);
+        models.triArray.push(node.tri.model);
+        if(seq[1] && seq[1].tri) traverse(models, camera, seq[1]);
+    }
+    models.triArray = [];
+    traverse(models, camera, bsp);
 }
 
 // TODO: Depth Sort
@@ -835,6 +907,7 @@ function updateCameraAxis() {
 function rotateCamera(rad, axis) {
     mat4.multiply(camera.vMatrix, mat4.fromRotation(mat4.create(), -rad, axis), camera.vMatrix);
     updateCameraAxis();
+    if(option.BSPTree) updateBSP(models, camera, bsp);
 }
 
 function translateCamera(vec) {
@@ -842,6 +915,7 @@ function translateCamera(vec) {
         camera.vMatrix[i + 12] -= vec[i];
         camera.xyz[i] += camera.X[i] * vec[0] + camera.Y[i] * vec[1] + camera.Z[i] * vec[2];
     }
+    if(option.BSPTree) updateBSP(models, camera, bsp);
 }
 
 function rotateModel(model, axis, rotAngle) {
@@ -910,13 +984,20 @@ function renderArrays(models) {
     gl.bindTexture(gl.TEXTURE_2D, multitexture);
     gl.uniform1i(uniforms.multitextureUniform, 1);
 
+    // set identity matrix
+    let eMatrix = mat4.create();
+
     for (let i = 0; i < models.triArray.length; i++) {
         let modelIndex = models.triArray[i][0];
 
         gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
 
-        gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
+        if (0 === option.BSPTree) {
+            gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
+        } else {
+            gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, eMatrix);
+        }
         gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, models.array[modelIndex].nMatrix);
 
         // update texture uniform
@@ -976,6 +1057,11 @@ function refresh() {
     loadLights(); // load in the lights
     setupWebGL(); // set up the webGL environment
     camera.pMatrix = calcPerspective(camera.left, camera.right, camera.top, camera.bottom, camera.near, camera.far);
+    if(1 === option.BSPTree) {
+        combineModelsInBSP(models, camera);
+    } else {
+        combineModelsInArray();
+    }
     setupShaders(); // setup the webGL shaders
     renderTriangles();
 }
@@ -1004,6 +1090,6 @@ function main() {
     setupShaders(); // setup the webGL shaders
     renderTriangles(); // draw the triangles using webGL
     setupKeyEvent();
-    requestAnimationFrame(animate);
+    // requestAnimationFrame(animate);
   
 } // end main
