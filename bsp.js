@@ -114,7 +114,7 @@ class Triangle {
     calcIntersect(p1, p2) {
         let v = vec3.subtract(vec3.create(), p2, p1), a;
         let dot = vec3.dot(v, this.n);
-        if(dot < PARALLEL_THRESHOLD) a = 1;
+        if(Math.abs(dot) < PARALLEL_THRESHOLD) a = 1;
         else a = (this.offset - vec3.dot(p1, this.n)) / dot;
         let p = vec3.scaleAndAdd(vec3.create(), p1, v, a);
         p.n = vec3.lerp(vec3.create(), p1.n, p2.n, a);
