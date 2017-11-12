@@ -158,12 +158,10 @@ function setupShaders() {
             vec3 rgb = vec3(0, 0, 0);
             vec4 textureColor = texture2D(uTexture, vTextureUV);
             vec4 multitextureColor = texture2D(uMultiTexture, vTextureUV);
-            float alpha;
+            float alpha = 1.0;
             
-            if(0 == uOption.textureTransparent) textureColor.a = 1.0;
             if(uOption.useLight == 0) {
                 rgb = textureColor.rgb;
-                alpha = textureColor.a;
             } else {
                 vec3 ambientColor;
                 vec3 diffuseColor;
@@ -174,12 +172,10 @@ function setupShaders() {
                     ambientColor = textureColor.rgb;
                     diffuseColor = textureColor.rgb;
                     specularColor = uMaterial.specular;
-                    alpha = textureColor.a;
                 } else if(1 == uOption.lightModel) {   // Modulate
                     ambientColor = textureColor.rgb * uMaterial.ambient;
                     diffuseColor = textureColor.rgb * uMaterial.diffuse;
                     specularColor = uMaterial.specular;
-                    alpha = textureColor.a * uMaterial.alpha;
                 }
                 
                 for(int i = 0; i < N_LIGHT; i++) {
@@ -200,7 +196,8 @@ function setupShaders() {
                 }
             }
                 
-            if(0 == uOption.transparent) alpha = textureColor.a;
+            if(1 == uOption.textureTransparent) alpha *= textureColor.a;
+            if(1 == uOption.transparent) alpha *= uMaterial.alpha;
             gl_FragColor = vec4(rgb, alpha); // without texture
             // gl_FragColor = textureColor; // with texture
         }
