@@ -1062,14 +1062,14 @@ function renderTriangles() {
 //endregion
 
 function refresh() {
-    let preBST = option.BSPTree;
+    let preBST = option.BSPTree, preTransparent = option.transparent;
     loadDocumentInputs();
     loadLights(); // load in the lights
     setupWebGL(); // set up the webGL environment
     camera.pMatrix = calcPerspective(camera.left, camera.right, camera.top, camera.bottom, camera.near, camera.far);
-    if(1 === option.BSPTree) {
+    if(option.BSPTree && option.transparent && (!preBST || !preTransparent)) {
         combineModelsInBSP();
-    } else if(1 === option.depthSort || 1 === preBST) {
+    } else if(option.depthSort || (!option.BSPTree && preBST) || (!option.transparent && preTransparent)) {
         combineModelsInArray();
     }
     setupShaders(); // setup the webGL shaders
