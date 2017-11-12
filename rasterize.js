@@ -994,10 +994,10 @@ function renderArrays(models) {
         gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
 
-        if (0 === option.BSPTree) {
-            gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
-        } else {
+        if (option.BSPTree && option.transparent) {
             gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, eMatrix);
+        } else {
+            gl.uniformMatrix4fv(uniforms.mMatrixUniform, false, models.array[modelIndex].mMatrix);
         }
         gl.uniformMatrix3fv(uniforms.nMatrixUniform, false, models.array[modelIndex].nMatrix);
 
