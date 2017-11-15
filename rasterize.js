@@ -1054,7 +1054,7 @@ function renderTriangles() {
     updateModelMatrices(models);
 
     // Render models
-    if(option.transparent || (option.depthSort || option.BSPTree )) {
+    if(option.transparent) {
         // Render opaque first
         gl.depthMask(true);
         renderArrays(models, false);
@@ -1064,6 +1064,7 @@ function renderTriangles() {
         renderArrays(models, true);
 
     } else {
+        gl.depthMask(true);
         renderElements(models);
     }
 } // end render triangles
