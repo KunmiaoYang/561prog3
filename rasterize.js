@@ -19,7 +19,7 @@ const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // b
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 const INPUT_MULTITEXTURE_URL = "https://ncsucgclass.github.io/prog3/retro.jpg"; // multitexture url
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
-const LATITUDE_COUNT = 20; const LONGITUDE_COUNT = 40;
+const LATITUDE_COUNT = 15; const LONGITUDE_COUNT = 30;
 var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
 var ViewUp = vec3.clone(defaultUp); // default eye view up direction in world space
 
@@ -585,6 +585,7 @@ function loadTriangleSets() {
 
             // Push triangleset into array
             triangleSet.id = models.array.length;
+            triangleSet.isTransparent = (triangleSet.material.alpha <= 1.0);
             models.array.push(triangleSet);
             triangleSets.array.push(triangleSet);
         } // end for each triangle set
@@ -652,6 +653,7 @@ function loadEllipsoids() {
 
             // Push triangleset into array
             triangleSet.id = models.array.length;
+            triangleSet.isTransparent = (triangleSet.material.alpha <= 1.0);
             models.array.push(triangleSet);
             ellipsoids.array.push(triangleSet);
         } // end for each ellipsoid
@@ -969,7 +971,7 @@ function renderElements(models) {
 }
 
 // render by triangle array
-function renderArrays(models) {
+function renderArrays(models, isTransparent) {
     // vertex buffer: activate and feed into vertex shader
     gl.bindBuffer(gl.ARRAY_BUFFER, models.vertexBuffer); // activate
     gl.vertexAttribPointer(vertexPositionAttrib,3,gl.FLOAT,false,0,0); // feed
@@ -990,6 +992,7 @@ function renderArrays(models) {
 
     for (let i = 0; i < models.triArray.length; i++) {
         let modelIndex = models.triArray[i][0];
+        if(models.array[modelIndex].isTransparent !== isTransparent) continue;
 
         gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
@@ -1020,11 +1023,9 @@ function renderTriangles() {
         // gl.blendFunc(gl.SRC_ALPHA, 0 === option.depthSort? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.enable(gl.BLEND);
-        gl.depthMask(false);
         gl.disable(gl.DEPTH_TEST);
     } else {
         gl.disable(gl.BLEND);
-        gl.depthMask(true);
         gl.enable(gl.DEPTH_TEST);
     }
 
@@ -1054,7 +1055,14 @@ function renderTriangles() {
 
     // Render models
     if(option.transparent || (option.depthSort || option.BSPTree )) {
-        renderArrays(models);
+        // Render opaque first
+        gl.depthMask(true);
+        renderArrays(models, false);
+
+        // Then render transparent
+        gl.depthMask(false);
+        renderArrays(models, true);
+
     } else {
         renderElements(models);
     }
