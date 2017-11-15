@@ -32,7 +32,7 @@ var textureUVAttrib; // where to put texture uvs for vertex shader
 
 var option = {useLight: 0, lightModel: 0, transparent: 0, depthSort: 0};
 
-var models = {selectId: -1, array: []};
+var models = {selectId: -1, array: [], modelOrder: [], opaque: []};
 var triangleSets = {};
 var ellipsoids = {};
 var bsp;
@@ -56,9 +56,10 @@ function loadDocumentInputs() {
     option.useLight = document.getElementById("UseLight").checked? 1 : 0;
     option.transparent = document.getElementById("Transparent").checked? 1 : 0;
     option.textureTransparent = document.getElementById("TextureTransparent").checked? 1 : 0;
+    option.modelSort = document.getElementById("modelSort").checked? 1 : 0;
     option.depthSort = document.getElementById("depthSort").checked? 1 : 0;
-    option.multitexture = document.getElementById("Multitexture").checked? 1 : 0;
     option.BSPTree = document.getElementById("BSPTree").checked? 1 : 0;
+    option.multitexture = document.getElementById("Multitexture").checked? 1 : 0;
     // lightsURL = document.getElementById("LightsURL").value;
     canvas.width = parseInt(document.getElementById("Width").value);
     canvas.height = parseInt(document.getElementById("Height").value);
@@ -667,6 +668,7 @@ function updateModelMatrices(models) {
     for(let i = 0; i < models.array.length; i++) {
         models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].tMatrix, models.array[i].rMatrix);
         models.array[i].nMatrix = mat3.normalFromMat4(mat3.create(), models.array[i].rMatrix);
+        models.array[i].vmMatrix = mat4.multiply(mat4.create(), camera.vMatrix, models.array[i].mMatrix);
         if (models.selectId === i) {
             models.array[i].mMatrix = mat4.multiply(mat4.create(), models.array[i].mMatrix, scaleMatrix);
         }
@@ -681,17 +683,22 @@ function combineModelsInArray() {
     models.uvArray = [];
     for(let i = 0; i < models.array.length; i++) {
         let model = models.array[i];
+        model.triArray = [];
         for(let j = 0; j < model.indexArray.length; j++) {
             let baseIndex3 = 3 * model.indexArray[j], baseIndex2 = 2 * model.indexArray[j];
             models.glVertices.push(model.coordArray[baseIndex3], model.coordArray[baseIndex3 + 1], model.coordArray[baseIndex3 + 2]);
             models.glNormals.push(model.normalArray[baseIndex3], model.normalArray[baseIndex3 + 1], model.normalArray[baseIndex3 + 2]);
             models.uvArray.push(model.uvArray[baseIndex2], model.uvArray[baseIndex2 + 1]);
-            if(j%3 === 0) models.triArray.push([i, 3 * models.triArray.length, 0.0]);
+            let tri = [i, 3 * models.triArray.length, 0.0];
+            if(j%3 === 0) {
+                models.triArray.push(tri);
+                model.triArray.push(tri);
+            }
         }
     }
 
     updateModelMatrices(models);
-    depthSort(models, camera);
+    depthSort(models, models.triArray);
 
     // send the vertex coords to webGL
     models.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
@@ -778,8 +785,8 @@ function updateBSP(models, camera, bsp) {
     traverse(models, camera, bsp);
 }
 
-// TODO: Depth Sort
-function depthSort(models, camera) {
+// Depth Sort
+function depthSort(models, triArray) {
     function calcZ(x, y, z, matrix) {
         return matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14];
     }
@@ -790,20 +797,41 @@ function depthSort(models, camera) {
         return sum / 3.0;
     }
     // Suppose matrices are up to date
-    let matrices = [];
-    for(let i = 0; i < models.array.length; i++)
-        matrices[i] = mat4.multiply(mat4.create(), camera.vMatrix, models.array[i].mMatrix);
 
     // Calculate depth of each triangle
-    for(let i = 0; i < models.triArray.length; i++)
-        models.triArray[i][2] = - calcTriZ(models.glVertices, 3 * models.triArray[i][1], matrices[models.triArray[i][0]]);
+    for(let i = 0; i < triArray.length; i++)
+        triArray[i][2] = - calcTriZ(models.glVertices, 3 * triArray[i][1], models.array[triArray[i][0]].vmMatrix);
 
     // Sort
-    for(let i = 1; i < models.triArray.length; i++) {
-        let temp = models.triArray[i], j;
-        for(j = i - 1; j >= 0 && models.triArray[j][2] < temp[2]; j--)
-            models.triArray[j + 1] = models.triArray[j];
-        models.triArray[j + 1] = temp;
+    for(let i = 1; i < triArray.length; i++) {
+        let temp = triArray[i], j;
+        for(j = i - 1; j >= 0 && triArray[j][2] < temp[2]; j--)
+            triArray[j + 1] = triArray[j];
+        triArray[j + 1] = temp;
+    }
+}
+
+// Model Sort
+function modelSort(models, camera) {
+    function calcCenterZ(index) {
+        return -models.array[index].vmMatrix[14];
+    }
+
+    // Put transparent models in the order
+    models.modelOrder = [];
+    models.opaque = [];
+    for(let i = 0; i < models.array.length; i++) {
+        if(models.array[i].isTransparent) models.modelOrder.push(i);
+        else models.opaque.push(i);
+    }
+
+    // Sort transparent models
+    for(let i = 1; i < models.modelOrder.length; i++){
+        let j, index = models.modelOrder[i], z = calcCenterZ(index);
+        for(j = i - 1; j >= 0 && calcCenterZ(models.modelOrder[j]) < z; j--) {
+            models.modelOrder[j + 1] = models.modelOrder[j];
+        }
+        models.modelOrder[j + 1] = index;
     }
 }
 
@@ -940,6 +968,9 @@ function changeModel(models, triangleSets, offset) {
 //region Render image
 // render with element topology
 function renderElements(models) {
+    gl.disable(gl.BLEND);
+    gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true);
     for(let i = 0; i < models.array.length; i++) {
         gl.uniform1f(uniforms.doubleSideUniform, models.array[i].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[i].material);
@@ -971,7 +1002,7 @@ function renderElements(models) {
 }
 
 // render by triangle array
-function renderArrays(models, isTransparent) {
+function renderArrays(models, triArray, isTransparent) {
     // vertex buffer: activate and feed into vertex shader
     gl.bindBuffer(gl.ARRAY_BUFFER, models.vertexBuffer); // activate
     gl.vertexAttribPointer(vertexPositionAttrib,3,gl.FLOAT,false,0,0); // feed
@@ -985,14 +1016,22 @@ function renderArrays(models, isTransparent) {
     gl.vertexAttribPointer(textureUVAttrib,2,gl.FLOAT,false,0,0); // feed
 
     // Sort triangles
-    if(1 === option.transparent && 1 === option.depthSort) depthSort(models, camera);
+    if(isTransparent) {
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.enable(gl.BLEND);
+        gl.disable(gl.DEPTH_TEST);
+        if(!option.BSPTree) depthSort(models, triArray);
+    } else {
+        gl.disable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
+    }
+    gl.depthMask(!isTransparent);
 
     // set identity matrix
     let eMatrix = mat4.create();
 
-    for (let i = 0; i < models.triArray.length; i++) {
-        let modelIndex = models.triArray[i][0];
-        if(models.array[modelIndex].isTransparent !== isTransparent) continue;
+    for (let i = 0; i < triArray.length; i++) {
+        let modelIndex = triArray[i][0];
 
         gl.uniform1f(uniforms.doubleSideUniform, models.array[modelIndex].doubleSide);
         setMaterialUniform(uniforms.materialUniform, models.array[modelIndex].material);
@@ -1010,24 +1049,13 @@ function renderArrays(models, isTransparent) {
         gl.uniform1i(uniforms.textureUniform, 0);
 
         // triangle buffer: activate and render
-        gl.drawArrays(gl.TRIANGLES, models.triArray[i][1], 3); // render
+        gl.drawArrays(gl.TRIANGLES, triArray[i][1], 3); // render
     }
 }
 
 // render the loaded model
 function renderTriangles() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // clear frame/depth buffers
-
-    // Initialize blending
-    if (1 === option.transparent) {
-        // gl.blendFunc(gl.SRC_ALPHA, 0 === option.depthSort? gl.ONE : gl.ONE_MINUS_SRC_ALPHA);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.enable(gl.BLEND);
-        gl.disable(gl.DEPTH_TEST);
-    } else {
-        gl.disable(gl.BLEND);
-        gl.enable(gl.DEPTH_TEST);
-    }
 
     // Initialize lights
     for (let i = 0; i < lightArray.length; i++) {
@@ -1055,16 +1083,20 @@ function renderTriangles() {
 
     // Render models
     if(option.transparent) {
-        // Render opaque first
-        gl.depthMask(true);
-        renderArrays(models, false);
+        if(option.modelSort) {
+            modelSort(models, camera);
 
-        // Then render transparent
-        gl.depthMask(false);
-        renderArrays(models, true);
+            // Render opaque first
+            for(let i = 0; i < models.opaque.length; i++)
+                renderArrays(models, models.array[models.opaque[i]].triArray, false);
 
+            // Then render transparent
+            for(let i = 0; i < models.modelOrder.length; i++)
+                renderArrays(models, models.array[models.modelOrder[i]].triArray, true);
+        } else {
+            renderArrays(models, models.triArray, true);
+        }
     } else {
-        gl.depthMask(true);
         renderElements(models);
     }
 } // end render triangles
