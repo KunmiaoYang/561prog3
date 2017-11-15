@@ -699,6 +699,7 @@ function combineModelsInArray() {
 
     updateModelMatrices(models);
     depthSort(models, models.triArray);
+    modelSort(models, camera);
 
     // send the vertex coords to webGL
     models.vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
@@ -1084,7 +1085,7 @@ function renderTriangles() {
     // Render models
     if(option.transparent) {
         if(option.modelSort) {
-            modelSort(models, camera);
+            // modelSort(models, camera);
 
             // Render opaque first
             for(let i = 0; i < models.opaque.length; i++)
