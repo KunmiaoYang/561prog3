@@ -1,7 +1,8 @@
 //region GLOBAL CONSTANTS AND VARIABLES
 /* assignment specific globals */
-const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog3/triangles.json"; // triangles file loc
-const INPUT_ELLIPSOIDS_URL = "https://ncsucgclass.github.io/prog3/ellipsoids.json"; // ellipsoids file loc
+const INPUT_BASE_URL = "https://kunmiaoyang.github.io/561prog3/"; // base url
+const INPUT_TRIANGLES_URL = INPUT_BASE_URL + "triangles.json"; // triangles file loc
+const INPUT_ELLIPSOIDS_URL = INPUT_BASE_URL + "ellipsoids.json"; // ellipsoids file loc
 var defaultEye = vec3.fromValues(0.5,0.5,-0.5); // default eye position in world space
 var defaultCenter = vec3.fromValues(0.5,0.5,0.5); // default view direction in world space
 var defaultUp = vec3.fromValues(0,1,0); // default view up vector
@@ -12,12 +13,11 @@ var lightPosition = vec3.fromValues(2,4,-0.5); // default light position
 var rotateTheta = Math.PI/50; // how much to rotate models by with each key press
 
 // My globals
-const INPUT_BASE_URL = "https://ncsucgclass.github.io/prog3/"; // base url
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
-const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/sky.jpg"; // background file loc
+const INPUT_BACKGROUND_URL = INPUT_BASE_URL + "sky.jpg"; // background file loc
 // const INPUT_BACKGROUND_URL = "https://ncsucgclass.github.io/prog3/stars.jpg"; // background file loc
-const INPUT_MULTITEXTURE_URL = "https://ncsucgclass.github.io/prog3/retro.jpg"; // multitexture url
+const INPUT_MULTITEXTURE_URL = INPUT_BASE_URL + "retro.jpg"; // multitexture url
 const DELTA_TRANS = 0.0125; const DELTA_ROT = -rotateTheta;
 const LATITUDE_COUNT = 15; const LONGITUDE_COUNT = 30;
 var LookAt = vec3.sub(vec3.create(), defaultCenter, defaultEye); // default eye look at direction in world space
@@ -633,7 +633,7 @@ function loadEllipsoids() {
                     let xu = sinP*sinT, yu = cosT, zu = cosP*sinT;
                     triangleSet.coordArray.push(xu * curSet.a, yu * curSet.b, zu * curSet.c);
                     triangleSet.normalArray.push(xu / curSet.a, yu / curSet.b, zu / curSet.c);
-                    triangleSet.uvArray.push(phi/Math.PI/2, v)
+                    triangleSet.uvArray.push(phi/Math.PI/2, v);
                 }
             }
 
